@@ -1,0 +1,14 @@
+{
+  "name": "screenshield",
+  "version": "1.0.0",
+  "description": "Accessibility browser extension: dyslexia reading view + seizure-safe harm reduction.",
+  "scripts": {
+    "build:chrome": "node build.js chrome",
+    "build:firefox": "node build.js firefox",
+    "build": "node build.js chrome && node build.js firefox",
+    "demo": "npx http-server demo -o -p 8080"
+  },
+  "devDependencies": {
+    "archiver": "^7.0.0"
+  }
+}

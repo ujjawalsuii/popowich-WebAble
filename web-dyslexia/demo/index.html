@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScreenShield — Demo Test Page</title>
+  <style>
+    /* ── Base: deliberately challenging layout before extension activates ── */
+    body {
+      margin: 0;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 13px;
+      line-height: 1.35;
+      color: #111;
+      background: #fff;
+    }
+
+    .page-wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 0 16px 80px;
+    }
+
+    /* ── Demo banner ──────────────────────────────────────── */
+    .demo-banner {
+      background: #1a1a2e;
+      color: #e8e8f0;
+      padding: 10px 20px;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .demo-banner strong { color: #4a90d9; font-size: 14px; }
+    .demo-badge {
+      background: #4a90d9;
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .demo-badge.warn { background: #f5a623; }
+
+    /* ── Flashing element (8 Hz) ──────────────────────────── */
+    .flash-section { margin: 32px 0; }
+    .flash-box {
+      width: 100%;
+      max-width: 540px;
+      height: 120px;
+      border-radius: 8px;
+      animation: flash 0.125s step-end infinite;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Arial, sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    @keyframes flash {
+      0%   { background: #000; color: #fff; }
+      50%  { background: #fff; color: #000; }
+    }
+    .flash-label {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      color: #666;
+      margin-top: 6px;
+    }
+
+    /* ── Section headings ─────────────────────────────────── */
+    h1 {
+      font-size: 28px;
+      line-height: 1.2;
+      margin: 28px 0 6px;
+    }
+    h2 {
+      font-size: 16px;
+      margin: 28px 0 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #444;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid #ddd;
+      margin: 28px 0;
+    }
+
+    /* ── Dense article text ───────────────────────────────── */
+    .article {
+      text-align: justify;
+      columns: 2;
+      column-gap: 28px;
+    }
+    .article p {
+      margin: 0 0 10px;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    @media (max-width: 640px) {
+      .article { columns: 1; }
+    }
+
+    /* ── GIF section ──────────────────────────────────────── */
+    .gif-section { margin: 28px 0; display: flex; gap: 16px; flex-wrap: wrap; }
+    .gif-section img { border-radius: 6px; }
+
+    /* ── Video section ────────────────────────────────────── */
+    .video-section { margin: 28px 0; }
+    video { border-radius: 8px; max-width: 100%; display: block; background: #000; }
+    .video-caption {
+      font-family: Arial, sans-serif;
+      font-size: 11px;
+      color: #888;
+      margin-top: 5px;
+    }
+
+    /* ── Anchor links (toc) ───────────────────────────────── */
+    .toc { font-family: Arial, sans-serif; font-size: 12px; margin: 16px 0 28px; }
+    .toc a { color: #1155cc; margin-right: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- Demo banner -->
+<div class="demo-banner">
+  <strong>ScreenShield Demo Page</strong>
+  <span class="demo-badge">Reading View</span>
+  <span class="demo-badge warn">Seizure-Safe</span>
+  <span style="color:#8888aa">Enable modes in the extension popup to see them in action.</span>
+</div>
+
+<div class="page-wrap">
+
+  <h1>The Digital Accessibility Challenge</h1>
+  <p style="font-size:13px;color:#666;font-family:Arial,sans-serif">
+    A dense, visually challenging test article — designed to stress-test both ScreenShield modes.
+  </p>
+
+  <nav class="toc" aria-label="Page sections">
+    Jump to:
+    <a href="#flash-section">Flashing box</a>
+    <a href="#gif-section">Animated GIFs</a>
+    <a href="#video-section">Video</a>
+    <a href="#article">Dense article</a>
+  </nav>
+
+  <hr class="divider" />
+
+  <!-- ── FLASHING BOX ──────────────────────────────────────── -->
+  <section class="flash-section" id="flash-section" aria-label="Flashing content demo">
+    <h2>&#9888; Flashing Content</h2>
+    <div class="flash-box" role="img"
+         aria-label="Rapidly flashing black-and-white box at approximately 8 Hz">
+      FLASHING AT ~8 Hz
+    </div>
+    <p class="flash-label">
+      CSS animation: <code>@keyframes flash</code>, 0.125s step-end infinite.
+      Seizure-Safe mode freezes <code>animation-duration</code> to 0.001ms.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── ANIMATED GIFs ─────────────────────────────────────── -->
+  <section class="gif-section" id="gif-section" aria-label="Animated GIF demo">
+    <h2>&#127916; Animated GIFs</h2>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+      <!--
+        Using a well-known tiny looping GIF (Wikimedia).
+        If offline, the image will show as broken — that is fine for the demo;
+        Seizure-Safe mode replaces it before it loads anyway.
+      -->
+      <img
+        src="https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif"
+        alt="Rotating Earth animation"
+        width="150" height="150"
+      />
+      <img
+        src="https://upload.wikimedia.org/wikipedia/commons/b/b1/Loading_icon.gif"
+        alt="Loading spinner"
+        width="64" height="64"
+      />
+      <div style="font-family:Arial,sans-serif;font-size:12px;color:#666;max-width:200px;align-self:center">
+        In Seizure-Safe mode, both GIFs above are replaced with click-to-reveal placeholders.
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── VIDEO (canvas-generated strobe) ───────────────────── -->
+  <section class="video-section" id="video-section" aria-label="Video flicker detection demo">
+    <h2>&#127909; Video — Flicker Detection</h2>
+    <p style="font-family:Arial,sans-serif;font-size:12px;color:#666;margin-bottom:10px">
+      A canvas-rendered strobe video is generated in-page (no server needed).
+      In Seizure-Safe mode, ScreenShield samples frames at ~10 fps and triggers
+      the warning card within 1–2 seconds of playback.
+    </p>
+    <canvas id="strobe-canvas" width="640" height="360"
+            style="display:none" aria-hidden="true"></canvas>
+    <video id="strobe-video" width="640" height="360"
+           controls loop muted
+           aria-label="Demo strobe video — will trigger flicker detection">
+      <p style="font-family:Arial,sans-serif;color:#fff;padding:20px">
+        Your browser does not support the video element.
+      </p>
+    </video>
+    <p class="video-caption">
+      Click play. With Seizure-Safe mode on (sensitivity ≥ 5) the warning card appears
+      within ~2 seconds.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── DENSE ARTICLE ─────────────────────────────────────── -->
+  <article id="article" aria-label="Dense article for Reading View demo">
+    <h2>Dense Article — Reading View Demo</h2>
+    <div class="article">
+
+      <p>The intersection of digital technology and human cognition has never been more consequential than in the present era. As screens become the primary interface through which individuals access information, education, employment, and social connection, the design choices embedded in those screens carry profound implications for cognitive accessibility, sensory safety, and equitable participation in public life.</p>
+
+      <p>Dyslexia affects an estimated 10–20% of the global population, making it one of the most prevalent learning differences in existence. Contrary to popular misconception, dyslexia is not a deficit of intelligence or effort; it is a neurobiological variation in the way the brain processes written language. Individuals with dyslexia frequently report that standard web typography — small serif fonts, tight line spacing, justified text that creates "rivers" of white space — exacerbates the visual crowding and letter-transposition effects that characterise their reading experience.</p>
+
+      <p>The consequences of these design choices extend far beyond inconvenience. Studies in educational psychology have demonstrated that students with dyslexia reading from poorly formatted screens show measurably higher cognitive load, lower comprehension retention, and greater rates of reading abandonment compared with matched controls. When critical health information, legal documents, or employment contracts are presented in inaccessible formats, the stakes of poor design become genuinely harmful.</p>
+
+      <p>Addressing this gap requires both technical and cultural change. On the technical side, interventions such as increased letter spacing, expanded word spacing, elevated line height, and restrained line length have been shown in multiple peer-reviewed studies to improve reading speed and accuracy for dyslexic readers without meaningfully degrading the experience for neurotypical readers. The elimination of justified text removes the irregular inter-word gaps that many dyslexic readers report as their single greatest barrier to fluent reading.</p>
+
+      <p>Font choice is similarly consequential. While no font has been conclusively proven superior for all dyslexic readers, sans-serif typefaces — Arial, Verdana, OpenDyslexic — consistently outperform complex serif faces in usability studies with dyslexic participants. The design philosophy underlying OpenDyslexic, which weights the bottom of each letter to reduce rotational ambiguity, reflects a principled attempt to encode neurological insight directly into typographic form.</p>
+
+      <p>Parallel to the accessibility needs of dyslexic readers, a distinct but equally urgent challenge exists for individuals with photosensitive neurological conditions. Photosensitive epilepsy affects roughly 1 in 4,000 people, with the threshold for triggering a seizure typically set by clinical guidelines at three or more flashes per second in a field that occupies a sufficient fraction of the visual field. However, the Harding Standard thresholds represent a clinical floor, not a safety ceiling: sub-threshold flicker, sustained oscillating motion, and rapidly alternating high-contrast patterns can cause discomfort, migraine, and dissociative episodes in a far larger population.</p>
+
+      <p>The proliferation of autoplay video, animated advertisement banners, CSS keyframe animations, and looping GIF imagery on modern web pages has created a browsing environment that is, for a meaningful minority of users, genuinely hazardous. Unlike the broadcast television domain — where the Harding Flash and Pattern Analyser has been a regulatory requirement in the United Kingdom since 2000 — the web operates under no equivalent standard. Content creators bear no legal obligation, and browsers provide no built-in protection.</p>
+
+      <p>The prefers-reduced-motion media query, introduced as part of CSS Media Queries Level 5, represents a significant step forward. When a user has enabled the system-level "reduce motion" accessibility setting, compliant websites can suppress animations and transitions. However, adoption remains far from universal; many high-traffic sites ignore the media query entirely, and the system setting is often unknown to users who would benefit from it.</p>
+
+      <p>Browser extensions occupy a unique position in this landscape. Operating at the intersection of user agency and technical capability, a well-designed extension can apply typographic corrections and animation suppression policies across the entire browsing session, regardless of whether individual websites have elected to implement accessibility features. This positions extensions as a form of infrastructure-level harm reduction: a safety layer that operates beneath the content layer, providing protection that does not depend on content-creator compliance.</p>
+
+      <p>The ethical framing of such tools matters considerably. Presenting seizure-risk mitigation as a medical guarantee would be both misleading and potentially dangerous, as it might lead users to lower their guard in genuinely hazardous environments. The appropriate framing is harm reduction: a probabilistic lowering of risk that places meaningful control in the hands of the user, while clearly communicating the limits of automated detection. This framing is consistent with established public health communication practice and respects user autonomy.</p>
+
+      <p>From a technical standpoint, robust real-time flicker detection in a browser extension presents several non-trivial engineering challenges. The cross-origin security model of the web prevents JavaScript from reading pixel data from video elements that are served from a different origin without explicit CORS headers — a restriction that eliminates a substantial fraction of embedded video content from automated analysis. Detection must therefore be framed as a best-effort service rather than a comprehensive guarantee.</p>
+
+      <p>For video elements that can be sampled, luminance-based frame analysis offers a computationally efficient detection heuristic. By downsampling each frame to a small canvas (64×36 pixels is sufficient to capture broad luminance oscillations while remaining well within per-frame processing budgets) and computing the average luminance using standard Rec.601 coefficients, a content script can evaluate roughly ten frames per second with negligible CPU impact on modern hardware. A rolling one-second window of luminance values, filtered for large inter-frame deltas, provides a reasonable proxy for the visual flash metric used in clinical assessment.</p>
+
+      <p>The sensitivity of this detection system can and should be user-adjustable. A single threshold that minimises false positives for neurotypical users will inevitably fail to protect highly sensitive users; conversely, a threshold calibrated for maximum protection will generate a volume of false positives that undermines user trust and encourages the extension to be disabled. A sensitivity control that allows each user to calibrate the system to their own risk tolerance and neurological profile is therefore both a technical necessity and an ethical imperative.</p>
+
+    </div>
+  </article>
+
+</div>
+
+<!-- ── Canvas-based strobe video generator ─────────────────────────────────── -->
+<script>
+(function () {
+  'use strict';
+
+  const canvas  = document.getElementById('strobe-canvas');
+  const video   = document.getElementById('strobe-video');
+  if (!canvas || !video) return;
+
+  // We generate a MediaStream from the canvas and pipe it to the video element.
+  // The canvas renders alternating black/white frames at ~8 fps (125ms each).
+  // This produces a clear luminance oscillation that the flicker detector will catch.
+
+  const ctx = canvas.getContext('2d');
+  let frameIndex = 0;
+  let lastTime   = 0;
+  const FRAME_MS = 125; // ~8 fps strobe
+
+  function drawFrame(timestamp) {
+    if (timestamp - lastTime >= FRAME_MS) {
+      lastTime = timestamp;
+      // Alternate black and white
+      ctx.fillStyle = (frameIndex % 2 === 0) ? '#000000' : '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw a frame counter so the video is clearly live, not frozen
+      ctx.fillStyle = (frameIndex % 2 === 0) ? '#ffffff' : '#000000';
+      ctx.font = 'bold 28px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('STROBE DEMO  — play to test detection', canvas.width / 2, canvas.height / 2);
+      ctx.font = '16px Arial';
+      ctx.fillText('(ScreenShield will pause this video)', canvas.width / 2, canvas.height / 2 + 40);
+
+      frameIndex++;
+    }
+    requestAnimationFrame(drawFrame);
+  }
+
+  // Check for captureStream support (Chrome + Firefox both support it)
+  if (typeof canvas.captureStream === 'function') {
+    const stream = canvas.captureStream(30);
+    video.srcObject = stream;
+
+    // Start the canvas animation (keeps running even before the video is played,
+    // so the stream has frames ready)
+    requestAnimationFrame(drawFrame);
+
+    video.addEventListener('play', () => {
+      // Ensure canvas animation is running
+    });
+  } else {
+    // Fallback: show a static warning
+    video.parentNode.insertAdjacentHTML('afterbegin',
+      '<p style="font-family:Arial,sans-serif;color:#c00;font-size:13px;margin-bottom:8px">' +
+      'canvas.captureStream() not supported in this browser. ' +
+      'Use Chrome or Firefox to test flicker detection.' +
+      '</p>'
+    );
+  }
+})();
+</script>
+
+</body>
+</html>
