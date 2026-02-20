@@ -6,245 +6,418 @@
     android:layout_height="match_parent"
     android:fillViewport="true"
     android:background="@color/bg_dark"
+    android:overScrollMode="never"
     tools:context=".MainActivity">
 
     <LinearLayout
+        android:id="@+id/rootContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:gravity="center_horizontal"
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
-        android:paddingTop="48dp"
-        android:paddingBottom="32dp">
+        android:paddingTop="56dp"
+        android:paddingBottom="40dp">
 
-        <!-- App Icon -->
+        <!-- Header -->
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🛡️"
-            android:textSize="64sp"
-            android:layout_marginBottom="16dp"/>
-
-        <!-- App Title -->
-        <TextView
+            android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="EpiGuard"
             android:textColor="@color/text_primary"
-            android:textSize="32sp"
+            android:textSize="34sp"
             android:textStyle="bold"
-            android:layout_marginBottom="4dp"/>
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.02"
+            android:contentDescription="EpiGuard application"/>
 
-        <!-- Tagline -->
         <TextView
+            android:id="@+id/tvSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Epilepsy Screen Protection"
+            android:text="Photosensitive seizure protection"
             android:textColor="@color/text_secondary"
-            android:textSize="16sp"
-            android:layout_marginBottom="32dp"/>
+            android:textSize="15sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="28dp"/>
 
-        <!-- Status Card -->
+        <!-- Hero Status Card -->
         <LinearLayout
             android:id="@+id/statusCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:background="@drawable/card_background"
+            android:orientation="horizontal"
+            android:background="@drawable/card_hero"
             android:padding="24dp"
-            android:layout_marginBottom="24dp">
+            android:gravity="center_vertical"
+            android:layout_marginBottom="24dp"
+            android:contentDescription="Protection status card">
 
-            <TextView
-                android:id="@+id/tvStatusLabel"
-                android:layout_width="wrap_content"
+            <!-- Status Indicator -->
+            <View
+                android:id="@+id/statusDot"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:background="@drawable/status_dot_inactive"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="PROTECTION STATUS"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:letterSpacing="0.15"
-                android:layout_marginBottom="8dp"/>
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="16dp">
 
-            <TextView
-                android:id="@+id/tvStatusValue"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="● Inactive"
-                android:textColor="@color/status_inactive"
-                android:textSize="20sp"
-                android:textStyle="bold"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Protection Status"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.08"/>
 
+                <TextView
+                    android:id="@+id/tvStatusValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Inactive"
+                    android:textColor="@color/status_inactive"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="2dp"
+                    android:contentDescription="Protection is currently inactive"/>
+
+                <!-- Colorblind-safe text label (hidden by default) -->
+                <TextView
+                    android:id="@+id/tvStatusLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="[STOPPED]"
+                    android:textColor="@color/text_hint"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:visibility="gone"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Start Button -->
+        <!-- Action Buttons -->
         <Button
             android:id="@+id/btnStartPrediction"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="Start Protection"
-            android:textColor="@color/white"
-            android:textSize="16sp"
+            android:layout_height="54dp"
+            android:text="Enable Protection"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:textAllCaps="false"
+            android:fontFamily="sans-serif-medium"
             android:background="@drawable/btn_primary"
-            android:layout_marginBottom="12dp"/>
+            android:layout_marginBottom="10dp"
+            android:contentDescription="Start screen monitoring and flash detection"/>
 
-        <!-- Stop Button -->
         <Button
             android:id="@+id/btnStopPrediction"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="Stop Protection"
+            android:layout_height="54dp"
+            android:text="Disable Protection"
             android:textColor="@color/text_secondary"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:textAllCaps="false"
+            android:fontFamily="sans-serif-medium"
             android:background="@drawable/btn_secondary"
-            android:layout_marginBottom="32dp"/>
+            android:layout_marginBottom="10dp"
+            android:contentDescription="Stop screen monitoring"/>
 
-        <!-- Feature Cards -->
+        <!-- Resume Button -->
+        <Button
+            android:id="@+id/btnResumeProtection"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Resume Protection"
+            android:textColor="@color/bg_dark"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:fontFamily="sans-serif-medium"
+            android:background="@drawable/btn_resume"
+            android:visibility="gone"
+            android:layout_marginBottom="10dp"
+            android:contentDescription="Resume flash detection that was paused"/>
+
+        <View
+            android:id="@+id/spacerAfterStop"
+            android:layout_width="match_parent"
+            android:layout_height="16dp"/>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"
+            android:layout_marginBottom="20dp"/>
+
+        <!-- ===== ACCESSIBILITY SETTINGS ===== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Accessibility"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:letterSpacing="0.06"
+            android:textAllCaps="true"
+            android:layout_marginBottom="14dp"/>
+
+        <!-- Colorblind Mode Toggle -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="horizontal"
+            android:background="@drawable/card_background"
+            android:padding="18dp"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
 
-            <!-- Feature 1 -->
             <LinearLayout
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:background="@drawable/card_background"
-                android:padding="16dp"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="12dp">
+                android:layout_weight="1"
+                android:orientation="vertical">
 
                 <TextView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:text="👁️"
-                    android:textSize="24sp"
-                    android:gravity="center"/>
-
-                <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:paddingStart="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Real-time Detection"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp"
-                        android:textStyle="bold"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Monitors screen for rapid flashing"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"/>
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- Feature 2 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:background="@drawable/card_background"
-                android:padding="16dp"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="12dp">
+                    android:text="Colorblind-safe Mode"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
 
                 <TextView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:text="⚡"
-                    android:textSize="24sp"
-                    android:gravity="center"/>
-
-                <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:paddingStart="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Instant Blocking"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp"
-                        android:textStyle="bold"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Blocks harmful content immediately"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"/>
-                </LinearLayout>
+                    android:text="Uses patterns and text labels alongside colors to convey status"
+                    android:textColor="@color/text_hint"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp"/>
             </LinearLayout>
 
-            <!-- Feature 3 -->
-            <LinearLayout
-                android:layout_width="match_parent"
+            <Switch
+                android:id="@+id/switchColorblind"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:background="@drawable/card_background"
-                android:padding="16dp"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="12dp">
-
-                <TextView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:text="📞"
-                    android:textSize="24sp"
-                    android:gravity="center"/>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:paddingStart="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Emergency Assist"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp"
-                        android:textStyle="bold"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Quick call for help when needed"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"/>
-                </LinearLayout>
-            </LinearLayout>
-
+                android:contentDescription="Toggle colorblind-safe mode"/>
         </LinearLayout>
 
-        <!-- Test Overlay -->
+        <!-- High Contrast Toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/card_background"
+            android:padding="18dp"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="High Contrast"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Increases text contrast and uses bolder colors for readability"
+                    android:textColor="@color/text_hint"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/switchHighContrast"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="Toggle high contrast mode"/>
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="20dp"/>
+
+        <!-- HOW IT WORKS SECTION -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="How it works"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:letterSpacing="0.06"
+            android:textAllCaps="true"
+            android:layout_marginBottom="14dp"/>
+
+        <!-- Feature 1 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/card_background"
+            android:padding="18dp"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <View
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/status_circle"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Real-time Monitoring"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Continuously analyzes screen content for rapid flashing patterns using WCAG 2.1 medical standards"
+                    android:textColor="@color/text_hint"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Feature 2 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/card_background"
+            android:padding="18dp"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <View
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/status_circle"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Instant Intervention"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Blocks harmful content immediately with a protective overlay when flashing exceeds safe limits"
+                    android:textColor="@color/text_hint"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Feature 3 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/card_background"
+            android:padding="18dp"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <View
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/status_circle"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Emergency Assist"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Quick access to call emergency services or close unsafe applications directly from the warning screen"
+                    android:textColor="@color/text_hint"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Test Button -->
         <Button
             android:id="@+id/btnTestOverlay"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="Test Warning Overlay"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp"
+            android:layout_height="44dp"
+            android:text="Preview Warning Screen"
+            android:textColor="@color/text_hint"
+            android:textSize="13sp"
             android:textAllCaps="false"
+            android:fontFamily="sans-serif-medium"
             android:background="@drawable/btn_outline"
-            android:layout_marginTop="16dp"/>
+            android:contentDescription="Show a preview of the warning overlay screen"/>
+
+        <!-- Footer -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Based on W3C WCAG 2.1 photosensitive seizure prevention guidelines. Colorblind-safe palette from IBM Design Language."
+            android:textColor="@color/text_hint"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:layout_marginTop="20dp"/>
 
     </LinearLayout>
 </ScrollView>

@@ -37,11 +37,37 @@ class ScreenCaptureService : Service() {
         const val EXTRA_RESULT_DATA = "RESULT_DATA"
         private const val NOTIFICATION_CHANNEL_ID = "ScreenCaptureServiceChannel"
         private const val NOTIFICATION_ID = 1
-        private const val OVERLAY_COOLDOWN_MS = 3000L // 3 second cooldown between overlay triggers
+        private const val OVERLAY_COOLDOWN_MS = 1500L // 1.5 second cooldown
+        private const val PAUSE_DURATION_MS = 5 * 60 * 1000L // 5 minutes
+
+        @Volatile
+        var pausedUntil: Long = 0L
+            private set
+
+        // Reference to the service instance for managing floating indicator
+        @Volatile
+        var instance: ScreenCaptureService? = null
+            private set
+
+        fun pauseProtection() {
+            pausedUntil = System.currentTimeMillis() + PAUSE_DURATION_MS
+            instance?.showPausedIndicator()
+        }
+
+        fun resumeProtection() {
+            pausedUntil = 0L
+            instance?.lastOverlayTime = 0L // Reset cooldown so detection fires immediately
+            instance?.hidePausedIndicator()
+        }
+
+        fun isPaused(): Boolean {
+            return System.currentTimeMillis() < pausedUntil
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         overlayManager = WarningOverlayManager(this)
         createNotificationChannel()
     }
@@ -157,6 +183,9 @@ class ScreenCaptureService : Service() {
 
         val frameAnalyzer = FrameAnalyzer {
             val now = System.currentTimeMillis()
+            if (isPaused()) {
+                return@FrameAnalyzer // Skip if paused
+            }
             if (now - lastOverlayTime > OVERLAY_COOLDOWN_MS) {
                 lastOverlayTime = now
                 Log.d("ScreenCaptureService", "Flashing detected! Showing warning overlay.")
@@ -215,8 +244,69 @@ class ScreenCaptureService : Service() {
             .build()
     }
 
+    // --- Floating Paused Indicator ---
+    private var pausedIndicatorView: android.view.View? = null
+
+    fun showPausedIndicator() {
+        if (pausedIndicatorView != null) return
+        
+        Handler(mainLooper).post {
+            try {
+                val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    else
+                        @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    android.graphics.PixelFormat.TRANSLUCENT
+                )
+                params.gravity = android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
+                params.y = 120
+
+                val pill = android.widget.TextView(this).apply {
+                    text = "  Protection Paused  \u2022  Tap to Resume  "
+                    setTextColor(android.graphics.Color.parseColor("#F5EDDA"))
+                    textSize = 13f
+                    setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD))
+                    setPadding(48, 20, 48, 20)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(android.graphics.Color.parseColor("#5B6F3C"))
+                        cornerRadius = 60f
+                        setStroke(2, android.graphics.Color.parseColor("#8BA65C"))
+                    }
+                    setOnClickListener {
+                        resumeProtection()
+                    }
+                }
+                
+                pausedIndicatorView = pill
+                wm.addView(pill, params)
+            } catch (e: Exception) {
+                Log.e("ScreenCaptureService", "Failed to show paused indicator: ${e.message}")
+            }
+        }
+    }
+
+    fun hidePausedIndicator() {
+        Handler(mainLooper).post {
+            pausedIndicatorView?.let {
+                try {
+                    val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                    wm.removeView(it)
+                } catch (_: Exception) {}
+                pausedIndicatorView = null
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        instance = null
+        hidePausedIndicator()
         stopCapture()
         overlayManager.hideWarning()
     }

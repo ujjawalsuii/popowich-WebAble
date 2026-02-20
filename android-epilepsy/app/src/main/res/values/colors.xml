@@ -3,29 +3,53 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- App Brand Colors -->
-    <color name="primary">#FF6C63FF</color>
-    <color name="primary_dark">#FF5A52D5</color>
-    <color name="primary_light">#FF9D97FF</color>
-    <color name="accent">#FF00E5FF</color>
+    <!-- Olive Green Palette -->
+    <color name="primary">#FF5B6F3C</color>
+    <color name="primary_dark">#FF3E4D28</color>
+    <color name="primary_light">#FF8BA65C</color>
+    <color name="primary_surface">#FF4A5A32</color>
+    <color name="accent">#FFC9A84C</color>
 
     <!-- Background -->
-    <color name="bg_dark">#FF0D1117</color>
-    <color name="bg_card">#FF161B22</color>
-    <color name="bg_card_light">#FF21262D</color>
+    <color name="bg_dark">#FF171C12</color>
+    <color name="bg_card">#FF1F2619</color>
+    <color name="bg_card_light">#FF2C3623</color>
+    <color name="bg_elevated">#FF343F28</color>
 
-    <!-- Text -->
-    <color name="text_primary">#FFF0F6FC</color>
-    <color name="text_secondary">#FF8B949E</color>
+    <!-- Cream Text -->
+    <color name="text_primary">#FFF5EDDA</color>
+    <color name="text_secondary">#FFA9A28E</color>
+    <color name="text_hint">#FF7A7564</color>
 
-    <!-- Status Colors -->
-    <color name="status_active">#FF3FB950</color>
-    <color name="status_inactive">#FF8B949E</color>
-    <color name="danger">#FFFF4444</color>
+    <!-- Status -->
+    <color name="status_active">#FF8BA65C</color>
+    <color name="status_inactive">#FF7A7564</color>
+    <color name="status_paused">#FFC9A84C</color>
+    <color name="danger">#FFBF4040</color>
+    <color name="safe_green">#FF5B8C3E</color>
+
+    <!-- High Contrast Overrides -->
+    <color name="hc_bg">#FF000000</color>
+    <color name="hc_text">#FFFFFFFF</color>
+    <color name="hc_accent">#FFFFFF00</color>
+    <color name="hc_active">#FF00FF00</color>
+    <color name="hc_inactive">#FFAAAAAA</color>
+    <color name="hc_danger">#FFFF0000</color>
 
     <!-- Overlay -->
-    <color name="overlay_bg">#F5000000</color>
-    <color name="overlay_dismiss">#FF30363D</color>
-    <color name="overlay_close_app">#FFDA3633</color>
-    <color name="overlay_call_help">#FF238636</color>
+    <color name="overlay_bg">#F2111510</color>
+    <color name="overlay_dismiss">#FF5B6F3C</color>
+    <color name="overlay_pause">#FFC9A84C</color>
+    <color name="overlay_close">#FFBF4040</color>
+    <color name="overlay_help">#FF5B8C3E</color>
+
+    <!-- Divider -->
+    <color name="divider">#FF2C3623</color>
+
+    <!-- Colorblind-safe palette (IBM Design Language) -->
+    <color name="cb_active">#FF648FFF</color>
+    <color name="cb_inactive">#FF888888</color>
+    <color name="cb_paused">#FFFFB000</color>
+    <color name="cb_danger">#FFDC267F</color>
+    <color name="cb_safe">#FF785EF0</color>
 </resources>
