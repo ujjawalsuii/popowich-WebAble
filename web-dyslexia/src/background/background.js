@@ -19,16 +19,17 @@ if (typeof globalThis.browser === 'undefined') {
 }
 
 const DEFAULT_SETTINGS = {
-  dyslexiaMode:  false,
+  dyslexiaMode: false,
   seizureSafeMode: false,
-  sensitivity:   5,
-  allowlist:     []
+  ttsMode: false,
+  sensitivity: 5,
+  allowlist: []
 };
 
 browser.runtime.onInstalled.addListener(async () => {
   try {
     const stored = await browser.storage.sync.get(Object.keys(DEFAULT_SETTINGS));
-    const toSet  = {};
+    const toSet = {};
 
     for (const [key, defaultVal] of Object.entries(DEFAULT_SETTINGS)) {
       if (stored[key] === undefined) {
@@ -40,7 +41,23 @@ browser.runtime.onInstalled.addListener(async () => {
       await browser.storage.sync.set(toSet);
     }
   } catch (err) {
-    // Storage may not be available in some contexts during testing
     console.warn('[ScreenShield background] storage init failed:', err);
+  }
+
+  // Create right-click "Narrate" context menu item
+  browser.contextMenus.create({
+    id: 'screenshield-narrate',
+    title: 'Narrate selected text',
+    contexts: ['selection']
+  });
+});
+
+// Handle context menu click — send selected text to content script for TTS
+browser.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'screenshield-narrate' && info.selectionText) {
+    browser.tabs.sendMessage(tab.id, {
+      action: 'narrate-selection',
+      text: info.selectionText
+    });
   }
 });

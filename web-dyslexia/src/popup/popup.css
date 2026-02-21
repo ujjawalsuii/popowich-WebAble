@@ -16,6 +16,8 @@
   --accent:     #4a90d9;
   --accent-dim: rgba(74, 144, 217, 0.15);
   --warn:       #f5a623;
+  --tts:        #a855f7;
+  --tts-dim:    rgba(168, 85, 247, 0.15);
   --on:         #34c759;
   --radius:     12px;
   --radius-sm:  8px;
@@ -88,6 +90,11 @@ main {
 .card.active {
   border-color: var(--accent);
   background: linear-gradient(135deg, var(--surface) 0%, rgba(74,144,217,0.06) 100%);
+}
+
+.card-tts.active {
+  border-color: var(--tts);
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(168,85,247,0.06) 100%);
 }
 
 .card-allowlist.allowlisted {
@@ -295,6 +302,8 @@ footer {
     --accent:     #3a7bc8;
     --accent-dim: rgba(58, 123, 200, 0.12);
     --warn:       #d6780a;
+    --tts:        #9333ea;
+    --tts-dim:    rgba(147, 51, 234, 0.12);
     --on:         #2d9e48;
   }
 
@@ -316,6 +325,10 @@ footer {
   /* Active card gradient uses page background so adjust for light */
   .card.active {
     background: linear-gradient(135deg, #ffffff 0%, rgba(58,123,200,0.07) 100%);
+  }
+
+  .card-tts.active {
+    background: linear-gradient(135deg, #ffffff 0%, rgba(147,51,234,0.07) 100%);
   }
 
   .card-allowlist.allowlisted {

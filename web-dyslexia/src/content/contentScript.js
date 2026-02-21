@@ -24,21 +24,22 @@
 
 // ── 1. State ─────────────────────────────────────────────────────────────────
 
-const SS_DYSLEXIA_CSS_ID  = 'screenshield-dyslexia-css';
+const SS_DYSLEXIA_CSS_ID = 'screenshield-dyslexia-css';
 const SS_DYSLEXIA_FONT_ID = 'screenshield-dyslexia-font';
 const SS_DYSLEXIA_HOST_ID = 'screenshield-dyslexia-host';
-const SS_SEIZURE_CSS_ID   = 'screenshield-seizure-css';
+const SS_SEIZURE_CSS_ID = 'screenshield-seizure-css';
 
 let settings = {
-  dyslexiaMode:    false,
+  dyslexiaMode: false,
   seizureSafeMode: false,
-  sensitivity:     5,
-  allowlist:       []
+  ttsMode: false,
+  sensitivity: 5,
+  allowlist: []
 };
 
-const monitoredVideos           = new WeakSet();
-let   videoIntersectionObserver = null;
-let   domMutationObserver       = null;
+const monitoredVideos = new WeakSet();
+let videoIntersectionObserver = null;
+let domMutationObserver = null;
 
 /** Mirror of the panel's current dark-mode state so the matchMedia listener
  *  can update both the theme and the panel button emoji together. */
@@ -54,8 +55,9 @@ async function init() {
     return;
   }
   if (isAllowlisted()) return;
-  if (settings.dyslexiaMode)    enableDyslexiaMode();
+  if (settings.dyslexiaMode) enableDyslexiaMode();
   if (settings.seizureSafeMode) enableSeizureSafeMode();
+  if (settings.ttsMode) enableTTS();
 }
 
 function isAllowlisted() {
@@ -78,7 +80,7 @@ browser.storage.onChanged.addListener((changes, area) => {
     return;
   }
   if (changes.allowlist && !isAllowlisted()) {
-    if (settings.dyslexiaMode)    enableDyslexiaMode();
+    if (settings.dyslexiaMode) enableDyslexiaMode();
     if (settings.seizureSafeMode) enableSeizureSafeMode();
     return;
   }
@@ -89,6 +91,27 @@ browser.storage.onChanged.addListener((changes, area) => {
   }
   if (changes.seizureSafeMode) {
     settings.seizureSafeMode ? enableSeizureSafeMode() : disableSeizureSafeMode();
+  }
+  if (changes.ttsMode) {
+    settings.ttsMode ? enableTTS() : disableTTS();
+  }
+});
+
+// ── Context menu "Narrate" handler ────────────────────────────────────────────
+browser.runtime.onMessage.addListener((msg) => {
+  if (msg.action === 'narrate-selection' && msg.text) {
+    const text = msg.text.trim();
+    if (!text) return;
+    // If the TTS panel is active, add to feed + speak
+    if (settings.ttsMode && ttsFeedEl) {
+      addChatMessage('Narrate', text);
+    } else {
+      // Speak directly even if TTS panel is off
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = ttsRate;
+      if (ttsVoice) utterance.voice = ttsVoice;
+      speechSynthesis.speak(utterance);
+    }
   }
 });
 
@@ -141,13 +164,13 @@ function disableDyslexiaMode() {
  * Called on enable and whenever the OS color scheme changes.
  */
 function applyReadingTheme(dark) {
-  const BG   = dark ? '#1a1a2e' : '#fdf9f0';
-  const TEXT  = dark ? '#e8e8f0' : '#1a1a2e';
+  const BG = dark ? '#1a1a2e' : '#fdf9f0';
+  const TEXT = dark ? '#e8e8f0' : '#1a1a2e';
   const root = document.documentElement;
-  root.style.setProperty('--ss-bg',   BG);
+  root.style.setProperty('--ss-bg', BG);
   root.style.setProperty('--ss-text', TEXT);
-  document.body?.style.setProperty('background-color', BG,   'important');
-  document.body?.style.setProperty('color',            TEXT, 'important');
+  document.body?.style.setProperty('background-color', BG, 'important');
+  document.body?.style.setProperty('color', TEXT, 'important');
 }
 
 // Listen for OS dark/light mode changes while the extension is active
@@ -183,7 +206,7 @@ function injectDyslexiaFont() {
   if (document.getElementById(SS_DYSLEXIA_FONT_ID)) return;
 
   const regularUrl = browser.runtime.getURL('assets/fonts/OpenDyslexic-Regular.otf');
-  const boldUrl    = browser.runtime.getURL('assets/fonts/OpenDyslexic-Bold.otf');
+  const boldUrl = browser.runtime.getURL('assets/fonts/OpenDyslexic-Bold.otf');
 
   const style = document.createElement('style');
   style.id = SS_DYSLEXIA_FONT_ID;
@@ -300,15 +323,15 @@ function injectDyslexiaPanel(darkInitial) {
     return s;
   }
 
-  const label   = document.createElement('span');
+  const label = document.createElement('span');
   label.className = 'label';
   label.textContent = '\uD83D\uDCD6 Dyslexia Friendly'; // 📖
 
-  const fontDec = makeBtn('font-dec', 'Smaller text',       'Decrease font size', 'A\u2212');
-  const fontInc = makeBtn('font-inc', 'Larger text',        'Increase font size', 'A+');
-  const bgBtn   = makeBtn('bg-cycle', 'Cycle colour theme', 'Cycle background',   '\uD83C\uDFA8'); // 🎨
-  const darkBtn = makeBtn('dark-mode','Toggle dark mode',   'Toggle dark mode',   darkInitial ? '\u2600\uFE0F' : '\uD83C\uDF19'); // ☀️ or 🌙
-  const closeBtn = makeBtn('close',  'Turn off Dyslexia Friendly', 'Close', '\u2715');
+  const fontDec = makeBtn('font-dec', 'Smaller text', 'Decrease font size', 'A\u2212');
+  const fontInc = makeBtn('font-inc', 'Larger text', 'Increase font size', 'A+');
+  const bgBtn = makeBtn('bg-cycle', 'Cycle colour theme', 'Cycle background', '\uD83C\uDFA8'); // 🎨
+  const darkBtn = makeBtn('dark-mode', 'Toggle dark mode', 'Toggle dark mode', darkInitial ? '\u2600\uFE0F' : '\uD83C\uDF19'); // ☀️ or 🌙
+  const closeBtn = makeBtn('close', 'Turn off Dyslexia Friendly', 'Close', '\u2715');
   closeBtn.className = 'btn-close';
 
   panel.append(label, makeSep(), fontDec, fontInc, makeSep(), bgBtn, darkBtn, makeSep(), closeBtn);
@@ -384,14 +407,14 @@ function injectDyslexiaPanel(darkInitial) {
     { bg: '#1a1a1a', text: '#f5f5dc' }, // near-black + beige text
   ];
 
-  let isDark  = darkInitial;
+  let isDark = darkInitial;
   let bgIndex = 0;
 
   function applyOption(opt) {
-    root.style.setProperty('--ss-bg',   opt.bg);
+    root.style.setProperty('--ss-bg', opt.bg);
     root.style.setProperty('--ss-text', opt.text);
-    document.body?.style.setProperty('background-color', opt.bg,   'important');
-    document.body?.style.setProperty('color',            opt.text, 'important');
+    document.body?.style.setProperty('background-color', opt.bg, 'important');
+    document.body?.style.setProperty('color', opt.text, 'important');
   }
 
   bgBtn.addEventListener('click', () => {
@@ -401,8 +424,8 @@ function injectDyslexiaPanel(darkInitial) {
   });
 
   darkBtn.addEventListener('click', () => {
-    isDark     = !isDark;
-    bgIndex    = 0;
+    isDark = !isDark;
+    bgIndex = 0;
     panelIsDark = isDark;
     darkBtn.textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19';
     applyOption(isDark ? DARK_BGS[0] : LIGHT_BGS[0]);
@@ -447,11 +470,11 @@ function disableSeizureSafeMode() {
   // Restore GIF placeholders (host divs with data-ss-gif-src)
   document.querySelectorAll('[data-ss-gif-src]').forEach(placeholder => {
     const img = document.createElement('img');
-    img.src       = placeholder.dataset.ssGifSrc;
-    img.alt       = placeholder.dataset.ssGifAlt || '';
+    img.src = placeholder.dataset.ssGifSrc;
+    img.alt = placeholder.dataset.ssGifAlt || '';
     // Restore original class list to the <img>, not whatever the div had
     if (placeholder.dataset.ssGifClass) img.className = placeholder.dataset.ssGifClass;
-    if (placeholder.dataset.ssGifWidth)  img.width  = placeholder.dataset.ssGifWidth;
+    if (placeholder.dataset.ssGifWidth) img.width = placeholder.dataset.ssGifWidth;
     if (placeholder.dataset.ssGifHeight) img.height = placeholder.dataset.ssGifHeight;
     try { placeholder.replaceWith(img); } catch { placeholder.parentNode?.replaceChild(img, placeholder); }
   });
@@ -478,7 +501,7 @@ function processVideos(videos) {
   if (!settings.seizureSafeMode) return;
   videos.forEach(video => {
     video.autoplay = false;
-    video.loop     = false;
+    video.loop = false;
     video.removeAttribute('autoplay');
     video.removeAttribute('loop');
     if (!video.paused) {
@@ -532,13 +555,13 @@ function createGIFPlaceholder(img) {
   const host = document.createElement('div');
 
   // Store original img attributes for restoration
-  host.dataset.ssGifSrc    = img.src;
-  host.dataset.ssGifAlt    = img.alt   || '';
-  host.dataset.ssGifClass  = img.className || '';   // saved but NOT applied to host
-  host.dataset.ssGifWidth  = img.width  || '';
+  host.dataset.ssGifSrc = img.src;
+  host.dataset.ssGifAlt = img.alt || '';
+  host.dataset.ssGifClass = img.className || '';   // saved but NOT applied to host
+  host.dataset.ssGifWidth = img.width || '';
   host.dataset.ssGifHeight = img.height || '';
 
-  const w = Math.max(img.width  || img.naturalWidth  || 0, 160);
+  const w = Math.max(img.width || img.naturalWidth || 0, 160);
   const h = Math.max(img.height || img.naturalHeight || 0, 96);
 
   // Only set size/display on the host — no class copying from img
@@ -566,9 +589,9 @@ function createGIFPlaceholder(img) {
   labelEl.textContent = img.alt ? `"${img.alt}"` : 'Animated image (blocked)';
 
   const btn = document.createElement('button');
-  btn.type        = 'button';
+  btn.type = 'button';
   btn.textContent = 'Show GIF';
-  btn.className   = 'show-btn';
+  btn.className = 'show-btn';
 
   card.appendChild(iconEl);
   card.appendChild(labelEl);
@@ -629,10 +652,10 @@ function createGIFPlaceholder(img) {
     e.preventDefault();
 
     const restored = document.createElement('img');
-    restored.src       = host.dataset.ssGifSrc;
-    restored.alt       = host.dataset.ssGifAlt;
+    restored.src = host.dataset.ssGifSrc;
+    restored.alt = host.dataset.ssGifAlt;
     restored.className = host.dataset.ssGifClass;  // restore ORIGINAL img class
-    if (host.dataset.ssGifWidth)  restored.width  = host.dataset.ssGifWidth;
+    if (host.dataset.ssGifWidth) restored.width = host.dataset.ssGifWidth;
     if (host.dataset.ssGifHeight) restored.height = host.dataset.ssGifHeight;
 
     // Flag BEFORE insertion so the MutationObserver callback (which fires
@@ -660,7 +683,7 @@ function setupMutationObserver() {
   if (domMutationObserver) return;
   domMutationObserver = new MutationObserver(mutations => {
     const newVideos = [];
-    const newImgs   = [];
+    const newImgs = [];
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
@@ -671,11 +694,11 @@ function setupMutationObserver() {
       }
     }
     if (newVideos.length) processVideos(newVideos);
-    if (newImgs.length)   processGIFs(newImgs);
+    if (newImgs.length) processGIFs(newImgs);
   });
   domMutationObserver.observe(document.body || document.documentElement, {
     childList: true,
-    subtree:   true
+    subtree: true
   });
 }
 
@@ -703,15 +726,15 @@ function setupIntersectionObserver() {
 function getThresholds() {
   const s = Math.max(1, Math.min(10, settings.sensitivity));
   return {
-    flickerThreshold:   Math.max(2, Math.round(6.5 - s * 0.5)),
+    flickerThreshold: Math.max(2, Math.round(6.5 - s * 0.5)),
     lumaDeltaThreshold: Math.max(10, 60 - s * 5),
-    sampleIntervalMs:   100,
-    windowSize:         10
+    sampleIntervalMs: 100,
+    windowSize: 10
   };
 }
 
 function sampleFrame(ctx) {
-  const data  = ctx.getImageData(0, 0, 64, 36).data;
+  const data = ctx.getImageData(0, 0, 64, 36).data;
   const count = 64 * 36;
   let r = 0, g = 0, b = 0;
   for (let i = 0; i < data.length; i += 4) {
@@ -724,9 +747,9 @@ function sampleFrame(ctx) {
 function frameDelta(a, b) {
   return Math.max(
     Math.abs(b.luma - a.luma),
-    Math.abs(b.r    - a.r)    * 0.75,
-    Math.abs(b.g    - a.g)    * 0.60,
-    Math.abs(b.b    - a.b)    * 0.65
+    Math.abs(b.r - a.r) * 0.75,
+    Math.abs(b.g - a.g) * 0.60,
+    Math.abs(b.b - a.b) * 0.65
   );
 }
 
@@ -734,12 +757,12 @@ function startFlickerDetection(video) {
   if (video._ssIntervalId) return;
 
   const canvas = document.createElement('canvas');
-  canvas.width  = 64;
+  canvas.width = 64;
   canvas.height = 36;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
   const frameHistory = [];
-  let   triggered    = false;
+  let triggered = false;
 
   video.dataset.ssMonitoring = 'true';
   const { sampleIntervalMs } = getThresholds();
@@ -796,7 +819,7 @@ function showFlickerWarning(video) {
 
   const syncPosition = () => {
     const r = video.getBoundingClientRect();
-    const w = Math.max(r.width,  240);
+    const w = Math.max(r.width, 240);
     const h = Math.max(r.height, 140);
     host.style.cssText = `
       position: fixed;
@@ -839,16 +862,16 @@ function showFlickerWarning(video) {
   const btns = document.createElement('div');
   btns.className = 'buttons';
 
-  const allowOnce  = document.createElement('button');
-  const allowSite  = document.createElement('button');
-  const keepBlock  = document.createElement('button');
-  allowOnce.type   = allowSite.type = keepBlock.type = 'button';
-  allowOnce.className  = 'allow-once';
-  allowSite.className  = 'allow-site';
-  keepBlock.className  = 'keep-blocked';
-  allowOnce.textContent  = 'Show once';
-  allowSite.textContent  = 'Always allow this site';
-  keepBlock.textContent  = 'Keep blocked';
+  const allowOnce = document.createElement('button');
+  const allowSite = document.createElement('button');
+  const keepBlock = document.createElement('button');
+  allowOnce.type = allowSite.type = keepBlock.type = 'button';
+  allowOnce.className = 'allow-once';
+  allowSite.className = 'allow-site';
+  keepBlock.className = 'keep-blocked';
+  allowOnce.textContent = 'Show once';
+  allowSite.textContent = 'Always allow this site';
+  keepBlock.textContent = 'Keep blocked';
 
   btns.append(allowOnce, allowSite, keepBlock);
   overlay.append(iconEl, titleEl, descEl, btns);
@@ -915,6 +938,952 @@ function showFlickerWarning(video) {
 
   document.body.appendChild(host);
   video._ssWarningHost = host;
+}
+
+// ── 9. TTS + Chat Reader ──────────────────────────────────────────────────────
+
+const SS_TTS_HOST_ID = 'screenshield-tts-host';
+
+let ttsQueue = [];
+let ttsSpeaking = false;
+let ttsMuted = false;
+let ttsRate = 1.0;
+let ttsVoice = null;   // SpeechSynthesisVoice or null (default)
+let chatMessages = [];
+let chatObservers = [];
+let ttsMsgCount = 0;
+
+/** References into the Shadow DOM for dynamic updates */
+let ttsShadow = null;
+let ttsFeedEl = null;
+let ttsStatusEl = null;
+let ttsBadgeEl = null;
+let ttsMuteBtnRef = null;
+
+// ── Enable / Disable ──────────────────────────────────────────────────────────
+
+function enableTTS() {
+  if (document.getElementById(SS_TTS_HOST_ID)) return;
+  injectChatReaderPanel();
+  startChatWatchers();
+  startCaptionWatchers();
+  document.addEventListener('keydown', ttsKeyHandler);
+  // Expose integration API for ASL team
+  window.__screenshield_tts = (sender, text) => {
+    if (settings.ttsMode) addChatMessage(sender || 'ASL', text);
+  };
+}
+
+function disableTTS() {
+  document.getElementById(SS_TTS_HOST_ID)?.remove();
+  stopChatWatchers();
+  stopCaptionWatchers();
+  speechSynthesis.cancel();
+  document.removeEventListener('keydown', ttsKeyHandler);
+  delete window.__screenshield_tts;
+  ttsQueue = [];
+  ttsSpeaking = false;
+  chatMessages = [];
+  ttsMsgCount = 0;
+  ttsShadow = null;
+  ttsFeedEl = null;
+  ttsStatusEl = null;
+  ttsBadgeEl = null;
+  ttsMuteBtnRef = null;
+}
+
+// ── Alt+M keyboard shortcut ───────────────────────────────────────────────────
+
+function ttsKeyHandler(e) {
+  if (e.altKey && (e.key === 'm' || e.key === 'M')) {
+    e.preventDefault();
+    toggleMute();
+  }
+}
+
+function toggleMute() {
+  ttsMuted = !ttsMuted;
+  if (ttsMuteBtnRef) {
+    ttsMuteBtnRef.textContent = ttsMuted ? '\uD83D\uDD07' : '\uD83D\uDD0A';
+    ttsMuteBtnRef.classList.toggle('muted', ttsMuted);
+  }
+  if (ttsMuted) speechSynthesis.cancel();
+  updateStatus(ttsMuted ? 'Muted' : 'Listening');
+}
+
+function updateStatus(text) {
+  if (ttsStatusEl) ttsStatusEl.textContent = text;
+}
+
+function updateBadge() {
+  if (ttsBadgeEl) {
+    ttsMsgCount++;
+    ttsBadgeEl.textContent = ttsMsgCount;
+    ttsBadgeEl.style.display = 'inline-flex';
+  }
+}
+
+// ── Chat Reader panel ─────────────────────────────────────────────────────────
+
+function injectChatReaderPanel() {
+  const host = document.createElement('div');
+  host.id = SS_TTS_HOST_ID;
+  host.style.cssText =
+    'position:fixed;bottom:16px;right:16px;z-index:2147483647;pointer-events:none;';
+
+  const shadow = host.attachShadow({ mode: 'open' });
+  ttsShadow = shadow;
+
+  // ── Panel ─────────────────────────────────────────────────
+  const panel = document.createElement('div');
+  panel.className = 'tts-panel';
+  panel.setAttribute('role', 'complementary');
+  panel.setAttribute('aria-label', 'Chat Reader — Text to Speech');
+
+  // ── Header (draggable) ────────────────────────────────────
+  const header = document.createElement('div');
+  header.className = 'tts-header';
+  header.style.cursor = 'grab';
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'tts-title-row';
+
+  const titleIcon = document.createElement('span');
+  titleIcon.className = 'tts-icon';
+  titleIcon.textContent = '\uD83D\uDD0A'; // 🔊
+
+  const titleText = document.createElement('span');
+  titleText.className = 'tts-title';
+  titleText.textContent = 'Chat Reader';
+
+  // Status indicator
+  const statusEl = document.createElement('span');
+  statusEl.className = 'tts-status';
+  statusEl.textContent = 'Listening';
+  ttsStatusEl = statusEl;
+
+  // Message count badge
+  const badge = document.createElement('span');
+  badge.className = 'tts-badge';
+  badge.textContent = '0';
+  badge.style.display = 'none';
+  ttsBadgeEl = badge;
+
+  const minimizeBtn = document.createElement('button');
+  minimizeBtn.type = 'button';
+  minimizeBtn.className = 'tts-btn tts-minimize';
+  minimizeBtn.title = 'Minimize';
+  minimizeBtn.textContent = '\u2015'; // ―
+
+  titleRow.append(titleIcon, titleText, statusEl, badge, minimizeBtn);
+  header.appendChild(titleRow);
+
+  // ── Message feed ──────────────────────────────────────────
+  const feed = document.createElement('div');
+  feed.className = 'tts-feed';
+  feed.setAttribute('role', 'log');
+  feed.setAttribute('aria-live', 'polite');
+  ttsFeedEl = feed;
+
+  const emptyMsg = document.createElement('div');
+  emptyMsg.className = 'tts-empty';
+  emptyMsg.textContent = 'No messages yet. Type below or chat will appear here.';
+  feed.appendChild(emptyMsg);
+
+  // ── Manual input ──────────────────────────────────────────
+  const inputRow = document.createElement('div');
+  inputRow.className = 'tts-input-row';
+
+  const textInput = document.createElement('input');
+  textInput.type = 'text';
+  textInput.className = 'tts-input';
+  textInput.placeholder = 'Type a message to speak...';
+  textInput.setAttribute('aria-label', 'Message to speak');
+
+  const speakBtn = document.createElement('button');
+  speakBtn.type = 'button';
+  speakBtn.className = 'tts-btn tts-speak-btn';
+  speakBtn.textContent = 'Speak';
+
+  inputRow.append(textInput, speakBtn);
+
+  // ── Controls row ──────────────────────────────────────────
+  const controls = document.createElement('div');
+  controls.className = 'tts-controls';
+
+  // Voice selector
+  const voiceSelect = document.createElement('select');
+  voiceSelect.className = 'tts-voice-select';
+  voiceSelect.setAttribute('aria-label', 'Voice');
+
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = 'Default voice';
+  voiceSelect.appendChild(defaultOpt);
+
+  // Populate voices (may load async)
+  function populateVoices() {
+    const voices = speechSynthesis.getVoices();
+    // Clear existing (except default)
+    while (voiceSelect.options.length > 1) voiceSelect.remove(1);
+    voices.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = v.name.replace(/Microsoft |Google /g, '') +
+        (v.lang ? ` (${v.lang})` : '');
+      voiceSelect.appendChild(opt);
+    });
+  }
+  populateVoices();
+  speechSynthesis.addEventListener('voiceschanged', populateVoices);
+
+  controls.appendChild(voiceSelect);
+
+  // Rate control
+  const rateLabel = document.createElement('label');
+  rateLabel.className = 'tts-rate-label';
+  rateLabel.textContent = 'Speed';
+
+  const rateSlider = document.createElement('input');
+  rateSlider.type = 'range';
+  rateSlider.className = 'tts-rate-slider';
+  rateSlider.min = '0.5';
+  rateSlider.max = '2';
+  rateSlider.step = '0.25';
+  rateSlider.value = String(ttsRate);
+  rateSlider.setAttribute('aria-label', 'Speech rate');
+
+  const rateVal = document.createElement('span');
+  rateVal.className = 'tts-rate-val';
+  rateVal.textContent = '1x';
+
+  // Mute button
+  const muteBtn = document.createElement('button');
+  muteBtn.type = 'button';
+  muteBtn.className = 'tts-btn tts-mute-btn';
+  muteBtn.title = 'Mute / Unmute (Alt+M)';
+  muteBtn.textContent = '\uD83D\uDD0A'; // 🔊
+  ttsMuteBtnRef = muteBtn;
+
+  // Clear button
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'tts-btn tts-clear-btn';
+  clearBtn.title = 'Clear feed';
+  clearBtn.textContent = 'Clear';
+
+  controls.append(rateLabel, rateSlider, rateVal, muteBtn, clearBtn);
+
+  // ── Assemble ──────────────────────────────────────────────
+  panel.append(header, feed, inputRow, controls);
+  shadow.appendChild(panel);
+
+  // ── Styles ────────────────────────────────────────────────
+  createShadowStyles(shadow, `
+    :host { all: initial; display: block; }
+    .tts-panel {
+      pointer-events: auto;
+      width: 340px;
+      max-height: 440px;
+      background: #13131f;
+      border: 1px solid #a855f7;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(168,85,247,0.2);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
+      color: #e8e8f0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: slideUp 0.3s ease forwards;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .tts-panel.minimized .tts-feed,
+    .tts-panel.minimized .tts-input-row,
+    .tts-panel.minimized .tts-controls { display: none; }
+    .tts-panel.minimized { max-height: none; }
+
+    /* Header */
+    .tts-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid #2d2d4a;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .tts-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tts-icon { font-size: 15px; }
+    .tts-title {
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #a855f7;
+    }
+    .tts-status {
+      flex: 1;
+      font-size: 10px;
+      color: #5a5a7e;
+      text-align: right;
+      padding-right: 4px;
+      font-weight: 500;
+    }
+    .tts-status.speaking {
+      color: #22c55e;
+      animation: pulse 1.5s ease infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.5; }
+    }
+    .tts-badge {
+      background: #a855f7;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      flex-shrink: 0;
+    }
+
+    /* Feed */
+    .tts-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+      min-height: 80px;
+      max-height: 200px;
+    }
+    .tts-feed::-webkit-scrollbar { width: 4px; }
+    .tts-feed::-webkit-scrollbar-track { background: transparent; }
+    .tts-feed::-webkit-scrollbar-thumb { background: #3d3d5c; border-radius: 2px; }
+    .tts-empty {
+      color: #5a5a7e;
+      font-size: 11px;
+      text-align: center;
+      padding: 18px 8px;
+      line-height: 1.5;
+    }
+    .tts-msg {
+      padding: 6px 0;
+      border-bottom: 1px solid #1e1e35;
+      animation: fadeMsg 0.4s ease;
+      line-height: 1.45;
+    }
+    .tts-msg:last-child { border-bottom: none; }
+    @keyframes fadeMsg {
+      from { opacity: 0; transform: translateX(-6px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .tts-msg-sender {
+      font-weight: 600;
+      color: #a855f7;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+    .tts-msg-sender.asl  { color: #22c55e; }
+    .tts-msg-sender.caption { color: #f59e0b; }
+    .tts-msg-text {
+      color: #d0d0e8;
+      font-size: 12px;
+    }
+    .tts-msg-time {
+      display: block;
+      font-size: 9px;
+      color: #5a5a7e;
+      margin-top: 2px;
+    }
+    .tts-msg.highlight {
+      background: rgba(168,85,247,0.08);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin: 2px -8px;
+    }
+
+    /* Input */
+    .tts-input-row {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px;
+      border-top: 1px solid #2d2d4a;
+      flex-shrink: 0;
+    }
+    .tts-input {
+      flex: 1;
+      background: #1e1e35;
+      border: 1px solid #3d3d5c;
+      border-radius: 8px;
+      padding: 7px 10px;
+      color: #e8e8f0;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .tts-input:focus { border-color: #a855f7; }
+    .tts-input::placeholder { color: #5a5a7e; }
+
+    /* Buttons */
+    .tts-btn {
+      background: #2d2d4a;
+      border: 1px solid #3d3d5c;
+      color: #e8e8f0;
+      border-radius: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .tts-btn:hover { background: #3d3d5c; }
+    .tts-btn:focus-visible { outline: 2px solid #a855f7; outline-offset: 2px; }
+    .tts-speak-btn {
+      background: #a855f7;
+      border-color: #a855f7;
+      color: #fff;
+    }
+    .tts-speak-btn:hover { background: #9333ea; }
+    .tts-minimize { font-size: 14px; padding: 2px 8px; line-height: 1; }
+    .tts-mute-btn { font-size: 14px; padding: 4px 8px; }
+    .tts-mute-btn.muted {
+      background: #7f1d1d;
+      border-color: #991b1b;
+      color: #fca5a5;
+    }
+
+    /* Voice select */
+    .tts-voice-select {
+      background: #1e1e35;
+      border: 1px solid #3d3d5c;
+      border-radius: 6px;
+      color: #d0d0e8;
+      font-size: 10px;
+      font-family: inherit;
+      padding: 4px 6px;
+      max-width: 110px;
+      outline: none;
+      cursor: pointer;
+    }
+    .tts-voice-select:focus { border-color: #a855f7; }
+    .tts-voice-select option { background: #1e1e35; color: #d0d0e8; }
+
+    /* Controls */
+    .tts-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-top: 1px solid #2d2d4a;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .tts-rate-label {
+      font-size: 10px;
+      color: #8888aa;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .tts-rate-slider {
+      flex: 1;
+      min-width: 50px;
+      appearance: none;
+      -webkit-appearance: none;
+      height: 3px;
+      border-radius: 2px;
+      background: #3d3d5c;
+      outline: none;
+      cursor: pointer;
+    }
+    .tts-rate-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #a855f7;
+      cursor: pointer;
+    }
+    .tts-rate-slider::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border: none;
+      border-radius: 50%;
+      background: #a855f7;
+      cursor: pointer;
+    }
+    .tts-rate-val {
+      font-size: 11px;
+      font-weight: 700;
+      color: #a855f7;
+      min-width: 28px;
+      text-align: center;
+    }
+  `);
+
+  // ── Drag to reposition ────────────────────────────────────
+  let isDragging = false, dragOffsetX = 0, dragOffsetY = 0;
+
+  header.addEventListener('mousedown', e => {
+    if (e.target.tagName === 'BUTTON') return; // let button clicks through
+    isDragging = true;
+    header.style.cursor = 'grabbing';
+    const rect = host.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const x = e.clientX - dragOffsetX;
+    const y = e.clientY - dragOffsetY;
+    host.style.left = Math.max(0, Math.min(window.innerWidth - 80, x)) + 'px';
+    host.style.top = Math.max(0, Math.min(window.innerHeight - 40, y)) + 'px';
+    host.style.right = 'auto';
+    host.style.bottom = 'auto';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      header.style.cursor = 'grab';
+    }
+  });
+
+  // ── Event handlers ──────────────────────────────────────────
+
+  // Minimize / expand
+  minimizeBtn.addEventListener('click', () => {
+    const isMin = panel.classList.toggle('minimized');
+    minimizeBtn.textContent = isMin ? '+' : '\u2015';
+  });
+
+  // Speak manual input
+  const handleSpeak = () => {
+    const text = textInput.value.trim();
+    if (!text) return;
+    addChatMessage('You', text);
+    textInput.value = '';
+    textInput.focus();
+  };
+  speakBtn.addEventListener('click', handleSpeak);
+  textInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); handleSpeak(); }
+  });
+
+  // Voice selector
+  voiceSelect.addEventListener('change', () => {
+    const voices = speechSynthesis.getVoices();
+    const idx = parseInt(voiceSelect.value, 10);
+    ttsVoice = isNaN(idx) ? null : voices[idx] || null;
+  });
+
+  // Rate slider
+  rateSlider.addEventListener('input', () => {
+    ttsRate = parseFloat(rateSlider.value);
+    rateVal.textContent = ttsRate + 'x';
+  });
+
+  // Mute toggle
+  muteBtn.addEventListener('click', () => toggleMute());
+
+  // Clear feed
+  clearBtn.addEventListener('click', () => {
+    chatMessages = [];
+    ttsMsgCount = 0;
+    feed.textContent = '';
+    const empty = document.createElement('div');
+    empty.className = 'tts-empty';
+    empty.textContent = 'Feed cleared.';
+    feed.appendChild(empty);
+    if (ttsBadgeEl) { ttsBadgeEl.textContent = '0'; ttsBadgeEl.style.display = 'none'; }
+    speechSynthesis.cancel();
+    ttsQueue = [];
+    updateStatus('Listening');
+  });
+
+  document.documentElement.appendChild(host);
+}
+
+// ── Message management ────────────────────────────────────────────────────────
+
+function addChatMessage(sender, text) {
+  if (!ttsFeedEl) return;
+
+  // Remove empty state
+  const empty = ttsFeedEl.querySelector('.tts-empty');
+  if (empty) empty.remove();
+
+  // Dedup: exact match OR substring match within 3s (handles nested DOM nodes)
+  const now = Date.now();
+  const recentWindow = 3000;
+  for (let i = chatMessages.length - 1; i >= Math.max(0, chatMessages.length - 5); i--) {
+    const prev = chatMessages[i];
+    if ((now - prev.time) > recentWindow) break;
+    // Skip if exact match, substring, or superset of a recent message
+    if (prev.text === text) return;
+    if (prev.text.includes(text) || text.includes(prev.text)) return;
+  }
+
+  const entry = { sender, text, time: now };
+  chatMessages.push(entry);
+  if (chatMessages.length > 100) chatMessages.shift();
+
+  // Render
+  const msgEl = document.createElement('div');
+  msgEl.className = 'tts-msg highlight';
+
+  const senderEl = document.createElement('span');
+  senderEl.className = 'tts-msg-sender';
+  // Color-code by source
+  if (sender === 'ASL') senderEl.classList.add('asl');
+  if (sender === 'Captions') senderEl.classList.add('caption');
+  senderEl.textContent = sender + ':';
+
+  const textEl = document.createElement('span');
+  textEl.className = 'tts-msg-text';
+  textEl.textContent = ' ' + text;
+
+  const timeEl = document.createElement('span');
+  timeEl.className = 'tts-msg-time';
+  timeEl.textContent = new Date(now).toLocaleTimeString();
+
+  msgEl.append(senderEl, textEl, timeEl);
+  ttsFeedEl.appendChild(msgEl);
+  ttsFeedEl.scrollTop = ttsFeedEl.scrollHeight;
+
+  updateBadge();
+  setTimeout(() => msgEl.classList.remove('highlight'), 3000);
+
+  if (!ttsMuted) {
+    enqueueTTS(`${sender}: ${text}`);
+  }
+}
+
+// ── TTS queue ─────────────────────────────────────────────────────────────────
+
+function enqueueTTS(text) {
+  ttsQueue.push(text);
+  if (!ttsSpeaking) processNextTTS();
+}
+
+function processNextTTS() {
+  if (ttsQueue.length === 0) {
+    ttsSpeaking = false;
+    updateStatus(ttsMuted ? 'Muted' : 'Listening');
+    if (ttsStatusEl) ttsStatusEl.classList.remove('speaking');
+    return;
+  }
+  ttsSpeaking = true;
+  updateStatus('Speaking...');
+  if (ttsStatusEl) ttsStatusEl.classList.add('speaking');
+
+  const text = ttsQueue.shift();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = ttsRate;
+  if (ttsVoice) utterance.voice = ttsVoice;
+  utterance.onend = () => processNextTTS();
+  utterance.onerror = () => processNextTTS();
+  speechSynthesis.speak(utterance);
+}
+
+// ── Garbage text filter ───────────────────────────────────────────────────────
+
+/**
+ * Rejects text that looks like Meet/Teams/Zoom UI elements rather than
+ * actual human chat messages or spoken captions.
+ */
+const GARBAGE_PATTERNS = [
+  /Press Down Arrow/i,
+  /Turn (on|off) (microphone|camera|captions)/i,
+  /ctrl \+/i,
+  /keyboard_arrow/i,
+  /More options/i,
+  /Join now/i,
+  /Ready to join/i,
+  /Leave call/i,
+  /Share screen/i,
+  /Raise hand/i,
+  /Companion mode/i,
+  /Cast this meeting/i,
+  /Meeting details/i,
+  /Meeting timer/i,
+  /Gemini/i,
+  /action items/i,
+  /Switch account/i,
+  /System default/i,
+  /Realtek/i,
+  /Integrated Camera/i,
+  /Test speakers/i,
+  /test recording/i,
+  /Getting ready/i,
+  /Looking for others/i,
+  /No one else is here/i,
+  /expand_more|expand_less/i,
+  /arrow_drop_down/i,
+  /front_hand|back_hand/i,
+  /visual_effects/i,
+  /more_vert/i,
+  /mic_none|videocam|call_end|present_to_all/i,
+  /domain_disabled/i,
+  /frame_person|closed_caption/i,
+  /Send a reaction/i,
+  /Backgrounds and effects/i,
+  /hover tray/i,
+  /Hand raises/i,
+  /Chat with everyone/i,
+  /Meeting tools/i,
+  /Call ends soon/i,
+  /open to anyone/i,
+  /Developing an extension/i,
+  /add-ons/i,
+  /developers\.google/i,
+  /@gmail\.com/i,
+  /@[\w.-]+\.[a-z]{2,}/i,  // any email
+  /pfd-/i,                  // Meet internal IDs
+  /arrow_back/i,
+  /In-call messages/i,
+  /Send message/i,
+  /No chat messages/i,
+  /Continuous chat/i,
+  /Let participants/i,
+  /pin a message/i,
+  /won't be saved/i,
+  /^\d{1,2}:\d{2}\s*(AM|PM)?$/i,  // standalone timestamps like "7:37 PM"
+];
+
+function isGarbageText(text) {
+  if (!text) return true;
+  if (text.length < 3 || text.length > 500) return true;
+  for (const pat of GARBAGE_PATTERNS) {
+    if (pat.test(text)) return true;
+  }
+  const wordCount = text.split(/\s+/).length;
+  if (wordCount < 2 && text.length > 20) return true;
+  return false;
+}
+
+// ── DOM Chat Watchers ─────────────────────────────────────────────────────────
+
+function startChatWatchers() {
+  stopChatWatchers();
+  const hostname = window.location.hostname;
+
+  // Google Meet — watch the whole body, garbage filter handles noise
+  if (hostname.includes('meet.google.com')) {
+    watchMeetBody();
+    return;
+  }
+
+  if (hostname.includes('teams.microsoft.com') || hostname.includes('teams.live.com')) {
+    watchChat([
+      '[role="log"]',
+      '[data-tid="message-pane-list-item"]'
+    ], parseTeamsMessage);
+    return;
+  }
+
+  if (hostname.includes('zoom.us') || hostname.includes('zoom.com')) {
+    watchChat([
+      '[role="log"]',
+      '.chat-container'
+    ], parseGenericMessage);
+    return;
+  }
+
+  // Generic — only role="log"
+  watchChat(['[role="log"]'], parseGenericMessage);
+}
+
+/**
+ * Meet-specific: observe the entire document body.
+ * This is intentionally broad — the garbage filter + size checks
+ * ensure only real chat text gets through.
+ */
+function watchMeetBody() {
+  const observer = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        // Skip our own panel
+        if (node.closest && node.closest('#' + SS_TTS_HOST_ID)) continue;
+        if (node.id === SS_TTS_HOST_ID) continue;
+
+        const text = node.textContent?.trim();
+        if (!text || text.length < 3 || text.length > 300) continue;
+        if (isGarbageText(text)) continue;
+
+        // Try to extract sender + message from the node
+        const parts = text.split('\n').map(s => s.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          const sender = parts[0];
+          const msg = parts[parts.length - 1];
+          if (!isGarbageText(sender) && !isGarbageText(msg) && msg.length >= 2) {
+            addChatMessage(sender, msg);
+            continue;
+          }
+        }
+        // Single-line message
+        if (!isGarbageText(text) && text.length >= 3) {
+          addChatMessage('Chat', text);
+        }
+      }
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+  chatObservers.push(observer);
+}
+
+function watchChat(selectors, parseMessageFn) {
+  let retries = 0;
+  const maxRetries = 10;
+  const retryDelay = 3000;
+
+  const tryAttach = () => {
+    for (const sel of selectors) {
+      const containers = document.querySelectorAll(sel);
+      for (const container of containers) {
+        if (container.closest('#' + SS_TTS_HOST_ID)) continue;
+        if (container.id === SS_TTS_HOST_ID) continue;
+
+        const observer = new MutationObserver(mutations => {
+          for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+              if (node.nodeType !== Node.ELEMENT_NODE) continue;
+              const parsed = parseMessageFn(node);
+              if (parsed && !isGarbageText(parsed.text)) {
+                addChatMessage(parsed.sender, parsed.text);
+              }
+            }
+          }
+        });
+
+        observer.observe(container, { childList: true, subtree: true });
+        chatObservers.push(observer);
+      }
+    }
+
+    if (chatObservers.length === 0 && retries < maxRetries) {
+      retries++;
+      setTimeout(tryAttach, retryDelay);
+    }
+  };
+  tryAttach();
+}
+
+function stopChatWatchers() {
+  chatObservers.forEach(obs => obs.disconnect());
+  chatObservers = [];
+}
+
+// ── Caption Watchers (Meet captions + YouTube subtitles) ──────────────────────
+
+let captionObservers = [];
+let lastCaptionText = '';
+
+function startCaptionWatchers() {
+  stopCaptionWatchers();
+  const hostname = window.location.hostname;
+
+  // Google Meet live captions — only the actual caption output container
+  if (hostname.includes('meet.google.com')) {
+    watchCaptions(['.a4cQT'], 'Meet');  // Meet's actual caption container class
+  }
+
+  // YouTube subtitles — only the real caption segment spans
+  if (hostname.includes('youtube.com')) {
+    watchCaptions(['.ytp-caption-segment'], 'YouTube');
+  }
+}
+
+function watchCaptions(selectors, platform) {
+  let retries = 0;
+  const maxRetries = 15;
+  const retryDelay = 2000;
+
+  const tryAttach = () => {
+    for (const sel of selectors) {
+      const els = document.querySelectorAll(sel);
+      for (const el of els) {
+        if (el.closest('#' + SS_TTS_HOST_ID)) continue;
+
+        const observer = new MutationObserver(() => {
+          const text = el.textContent?.trim();
+          if (text && text.length > 2 && text !== lastCaptionText && !isGarbageText(text)) {
+            lastCaptionText = text;
+            addChatMessage('Captions', text);
+          }
+        });
+
+        observer.observe(el, {
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+        captionObservers.push(observer);
+      }
+    }
+
+    if (captionObservers.length === 0 && retries < maxRetries) {
+      retries++;
+      setTimeout(tryAttach, retryDelay);
+    }
+  };
+  tryAttach();
+}
+
+function stopCaptionWatchers() {
+  captionObservers.forEach(obs => obs.disconnect());
+  captionObservers = [];
+  lastCaptionText = '';
+}
+
+// ── Message parsers ───────────────────────────────────────────────────────────
+
+function parseMeetMessage(node) {
+  const text = node.textContent?.trim();
+  if (!text || text.length < 2) return null;
+  if (isGarbageText(text)) return null;
+  const parts = text.split('\n').map(s => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const sender = parts[0];
+    const msg = parts[parts.length - 1];
+    if (isGarbageText(sender) || isGarbageText(msg)) return null;
+    return { sender, text: msg };
+  }
+  return { sender: 'Chat', text };
+}
+
+function parseTeamsMessage(node) {
+  const text = node.textContent?.trim();
+  if (!text || text.length < 2 || isGarbageText(text)) return null;
+  const authorEl = node.querySelector('[data-tid="message-author-name"]') ||
+    node.querySelector('[class*="author"]');
+  const sender = authorEl?.textContent?.trim() || 'Teams';
+  const bodyEl = node.querySelector('[data-tid="message-body"]') ||
+    node.querySelector('[class*="body"]');
+  const body = bodyEl?.textContent?.trim() || text;
+  if (isGarbageText(body)) return null;
+  return { sender, text: body };
+}
+
+function parseGenericMessage(node) {
+  const text = node.textContent?.trim();
+  if (!text || text.length < 2 || isGarbageText(text)) return null;
+  return { sender: 'Chat', text };
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

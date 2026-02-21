@@ -3,7 +3,13 @@
   "name": "ScreenShield",
   "version": "1.0.0",
   "description": "Dyslexia reading view + seizure-safe harm reduction. Your accessibility layer.",
-  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "contextMenus"
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -19,15 +25,24 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["lib/browser-polyfill.js", "content/contentScript.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "lib/browser-polyfill.js",
+        "content/contentScript.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["assets/fonts/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "assets/fonts/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

@@ -7,24 +7,27 @@
 const $ = id => document.getElementById(id);
 
 const els = {
-  dyslexiaToggle:    $('dyslexia-toggle'),
-  seizureToggle:     $('seizure-toggle'),
-  sensitivitySection:$('sensitivity-section'),
+  dyslexiaToggle: $('dyslexia-toggle'),
+  seizureToggle: $('seizure-toggle'),
+  ttsToggle: $('tts-toggle'),
+  sensitivitySection: $('sensitivity-section'),
   sensitivitySlider: $('sensitivity-slider'),
-  sensitivityValue:  $('sensitivity-value'),
-  allowlistToggle:   $('allowlist-toggle'),
-  allowlistDomain:   $('allowlist-domain'),
-  cardDyslexia:      $('card-dyslexia'),
-  cardSeizure:       $('card-seizure'),
-  cardAllowlist:     $('card-allowlist'),
+  sensitivityValue: $('sensitivity-value'),
+  allowlistToggle: $('allowlist-toggle'),
+  allowlistDomain: $('allowlist-domain'),
+  cardDyslexia: $('card-dyslexia'),
+  cardSeizure: $('card-seizure'),
+  cardTts: $('card-tts'),
+  cardAllowlist: $('card-allowlist'),
 };
 
 let currentHostname = '';
 let settings = {
-  dyslexiaMode:    false,
+  dyslexiaMode: false,
   seizureSafeMode: false,
-  sensitivity:     5,
-  allowlist:       []
+  ttsMode: false,
+  sensitivity: 5,
+  allowlist: []
 };
 
 // ── Init ────────────────────────────────────────────────────
@@ -55,7 +58,8 @@ async function init() {
 
 function hydrateUI() {
   els.dyslexiaToggle.checked = settings.dyslexiaMode;
-  els.seizureToggle.checked  = settings.seizureSafeMode;
+  els.seizureToggle.checked = settings.seizureSafeMode;
+  els.ttsToggle.checked = settings.ttsMode;
   els.sensitivitySlider.value = settings.sensitivity;
   els.sensitivityValue.textContent = settings.sensitivity;
 
@@ -73,6 +77,7 @@ function hydrateUI() {
   // Active card highlight
   els.cardDyslexia.classList.toggle('active', settings.dyslexiaMode);
   els.cardSeizure.classList.toggle('active', settings.seizureSafeMode);
+  els.cardTts.classList.toggle('active', settings.ttsMode);
 }
 
 // ── Event handlers ───────────────────────────────────────────
@@ -88,6 +93,12 @@ els.seizureToggle.addEventListener('change', async () => {
   els.sensitivitySection.hidden = !settings.seizureSafeMode;
   els.cardSeizure.classList.toggle('active', settings.seizureSafeMode);
   await browser.storage.sync.set({ seizureSafeMode: settings.seizureSafeMode });
+});
+
+els.ttsToggle.addEventListener('change', async () => {
+  settings.ttsMode = els.ttsToggle.checked;
+  els.cardTts.classList.toggle('active', settings.ttsMode);
+  await browser.storage.sync.set({ ttsMode: settings.ttsMode });
 });
 
 els.sensitivitySlider.addEventListener('input', () => {
