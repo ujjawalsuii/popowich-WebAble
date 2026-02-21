@@ -21,6 +21,8 @@ const els = {
   ttsLangSection: $('tts-lang-section'),
   ttsLanguage: $('tts-language'),
   cardAllowlist: $('card-allowlist'),
+  aslToggle: $('asl-toggle'),
+  cardAsl: $('card-asl'),
 };
 
 let currentHostname = '';
@@ -29,6 +31,7 @@ let settings = {
   seizureSafeMode: false,
   ttsMode: false,
   ttsLanguage: 'en',
+  aslMode: false,
   sensitivity: 5,
   allowlist: []
 };
@@ -85,6 +88,10 @@ function hydrateUI() {
   // Language selector
   els.ttsLangSection.hidden = !settings.ttsMode;
   els.ttsLanguage.value = settings.ttsLanguage || 'en';
+
+  // ASL
+  els.aslToggle.checked = settings.aslMode;
+  els.cardAsl.classList.toggle('active', settings.aslMode);
 }
 
 // ── Event handlers ───────────────────────────────────────────
@@ -112,6 +119,12 @@ els.ttsToggle.addEventListener('change', async () => {
 els.ttsLanguage.addEventListener('change', async () => {
   settings.ttsLanguage = els.ttsLanguage.value;
   await browser.storage.sync.set({ ttsLanguage: settings.ttsLanguage });
+});
+
+els.aslToggle.addEventListener('change', async () => {
+  settings.aslMode = els.aslToggle.checked;
+  els.cardAsl.classList.toggle('active', settings.aslMode);
+  await browser.storage.sync.set({ aslMode: settings.aslMode });
 });
 
 els.sensitivitySlider.addEventListener('input', () => {

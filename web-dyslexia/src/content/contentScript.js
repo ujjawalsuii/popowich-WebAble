@@ -34,6 +34,7 @@ let settings = {
   seizureSafeMode: false,
   ttsMode: false,
   ttsLanguage: 'en',
+  aslMode: false,
   sensitivity: 5,
   allowlist: []
 };
@@ -59,6 +60,7 @@ async function init() {
   if (settings.dyslexiaMode) enableDyslexiaMode();
   if (settings.seizureSafeMode) enableSeizureSafeMode();
   if (settings.ttsMode) enableTTS();
+  if (settings.aslMode) enableASL();
 }
 
 function isAllowlisted() {
@@ -98,6 +100,9 @@ browser.storage.onChanged.addListener((changes, area) => {
   }
   if (changes.ttsLanguage) {
     settings.ttsLanguage = changes.ttsLanguage.newValue || 'en';
+  }
+  if (changes.aslMode) {
+    settings.aslMode ? enableASL() : disableASL();
   }
 });
 
@@ -1913,6 +1918,467 @@ function parseGenericMessage(node) {
   const text = node.textContent?.trim();
   if (!text || text.length < 2 || isGarbageText(text)) return null;
   return { sender: 'Chat', text };
+}
+
+// ── 10. ASL Recognition ────────────────────────────────────────────────────────
+
+const SS_ASL_HOST_ID = 'screenshield-asl-host';
+let aslStream = null;
+let aslHands = null;
+let aslCamera = null;
+let aslShadow = null;
+let aslLetterEl = null;
+let aslWordEl = null;
+let aslCapsEl = null;
+let aslCurrentLetter = '';
+let aslLetterStart = 0;
+let aslWordBuffer = '';
+let aslCapsMode = false; // false = lowercase, true = UPPERCASE
+const ASL_HOLD_MS = 1200; // hold a sign this long to confirm
+
+function enableASL() {
+  if (document.getElementById(SS_ASL_HOST_ID)) return;
+  injectASLPanel();
+  startASLCamera();
+}
+
+function disableASL() {
+  if (aslCamera) { aslCamera.stop(); aslCamera = null; }
+  if (aslStream) { aslStream.getTracks().forEach(t => t.stop()); aslStream = null; }
+  document.getElementById(SS_ASL_HOST_ID)?.remove();
+  aslHands = null;
+  aslShadow = null;
+  aslLetterEl = null;
+  aslWordEl = null;
+  aslWordBuffer = '';
+  aslCurrentLetter = '';
+}
+
+function injectASLPanel() {
+  const host = document.createElement('div');
+  host.id = SS_ASL_HOST_ID;
+  host.style.cssText =
+    'position:fixed;bottom:16px;left:16px;z-index:2147483647;pointer-events:none;';
+
+  const shadow = host.attachShadow({ mode: 'open' });
+  aslShadow = shadow;
+
+  const panel = document.createElement('div');
+  panel.className = 'asl-panel';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'asl-header';
+  header.textContent = 'ASL Recognition';
+
+  // Webcam + MediaPipe iframe (runs in extension context, bypasses page CSP)
+  const iframe = document.createElement('iframe');
+  iframe.className = 'asl-iframe';
+  iframe.src = browser.runtime.getURL('content/asl-frame.html');
+  iframe.setAttribute('allow', 'camera');
+  iframe.setAttribute('frameborder', '0');
+
+  // Letter display
+  const letterBox = document.createElement('div');
+  letterBox.className = 'asl-letter-box';
+
+  const letterLabel = document.createElement('span');
+  letterLabel.className = 'asl-label';
+  letterLabel.textContent = 'Detected:';
+
+  const letterVal = document.createElement('span');
+  letterVal.className = 'asl-letter';
+  letterVal.textContent = '...';
+  aslLetterEl = letterVal;
+
+  letterBox.append(letterLabel, letterVal);
+
+  // Word buffer display
+  const wordBox = document.createElement('div');
+  wordBox.className = 'asl-word-box';
+
+  const wordVal = document.createElement('span');
+  wordVal.className = 'asl-word';
+  wordVal.textContent = '';
+  aslWordEl = wordVal;
+
+  const sendBtn = document.createElement('button');
+  sendBtn.className = 'asl-send-btn';
+  sendBtn.textContent = 'Send';
+  sendBtn.addEventListener('click', () => {
+    if (aslWordBuffer.trim()) {
+      if (typeof window.__screenshield_tts === 'function') {
+        window.__screenshield_tts('ASL', aslWordBuffer.trim());
+      } else {
+        addChatMessage('ASL', aslWordBuffer.trim());
+      }
+      aslWordBuffer = '';
+      if (aslWordEl) aslWordEl.textContent = '';
+    }
+  });
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'asl-clear-btn';
+  clearBtn.textContent = 'Clear';
+  clearBtn.addEventListener('click', () => {
+    aslWordBuffer = '';
+    if (aslWordEl) aslWordEl.textContent = '';
+  });
+
+  wordBox.append(wordVal, sendBtn, clearBtn);
+
+  // Toolbar: Caps toggle + Backspace
+  const toolbar = document.createElement('div');
+  toolbar.className = 'asl-toolbar';
+
+  const capsBtn = document.createElement('button');
+  capsBtn.className = 'asl-caps-btn';
+  capsBtn.textContent = 'Aa';
+  capsBtn.title = 'Toggle CAPS';
+  aslCapsEl = capsBtn;
+  capsBtn.addEventListener('click', () => {
+    aslCapsMode = !aslCapsMode;
+    capsBtn.textContent = aslCapsMode ? 'AA' : 'Aa';
+    capsBtn.classList.toggle('active', aslCapsMode);
+  });
+
+  const bkspBtn = document.createElement('button');
+  bkspBtn.className = 'asl-bksp-btn';
+  bkspBtn.textContent = '\u232B';
+  bkspBtn.title = 'Backspace';
+  bkspBtn.addEventListener('click', () => {
+    aslWordBuffer = aslWordBuffer.slice(0, -1);
+    if (aslWordEl) aslWordEl.textContent = aslWordBuffer;
+  });
+
+  const spaceBtn = document.createElement('button');
+  spaceBtn.className = 'asl-space-btn';
+  spaceBtn.textContent = '␣';
+  spaceBtn.title = 'Space';
+  spaceBtn.addEventListener('click', () => {
+    aslWordBuffer += ' ';
+    if (aslWordEl) aslWordEl.textContent = aslWordBuffer;
+  });
+
+  toolbar.append(capsBtn, spaceBtn, bkspBtn);
+
+  panel.append(header, iframe, letterBox, toolbar, wordBox);
+  shadow.appendChild(panel);
+
+  createShadowStyles(shadow, `
+    :host { all: initial; display: block; }
+    .asl-panel {
+      pointer-events: auto;
+      width: 200px;
+      background: #13131f;
+      border: 1px solid #22c55e;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
+      color: #e8e8f0;
+      overflow: hidden;
+      animation: slideUp 0.3s ease forwards;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .asl-header {
+      padding: 8px 12px;
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #22c55e;
+      border-bottom: 1px solid #2d2d4a;
+    }
+    .asl-iframe {
+      width: 100%;
+      height: 120px;
+      border: none;
+      background: #000;
+      display: block;
+    }
+    .asl-letter-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #2d2d4a;
+    }
+    .asl-label {
+      font-size: 10px;
+      color: #8888aa;
+    }
+    .asl-letter {
+      font-size: 28px;
+      font-weight: 800;
+      color: #22c55e;
+      flex: 1;
+      text-align: center;
+    }
+    .asl-word-box {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 10px;
+      flex-wrap: wrap;
+    }
+    .asl-word {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 600;
+      color: #d0d0e8;
+      min-height: 20px;
+      word-break: break-all;
+    }
+    .asl-send-btn, .asl-clear-btn {
+      background: #2d2d4a;
+      border: 1px solid #3d3d5c;
+      color: #e8e8f0;
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+    }
+    .asl-send-btn {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: #fff;
+    }
+    .asl-send-btn:hover { background: #16a34a; }
+    .asl-clear-btn:hover { background: #3d3d5c; }
+    .asl-toolbar {
+      display: flex;
+      gap: 4px;
+      padding: 6px 10px;
+      border-bottom: 1px solid #2d2d4a;
+    }
+    .asl-caps-btn, .asl-space-btn, .asl-bksp-btn {
+      flex: 1;
+      background: #2d2d4a;
+      border: 1px solid #3d3d5c;
+      color: #e8e8f0;
+      border-radius: 6px;
+      padding: 4px 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: inherit;
+      text-align: center;
+    }
+    .asl-caps-btn:hover, .asl-space-btn:hover, .asl-bksp-btn:hover {
+      background: #3d3d5c;
+    }
+    .asl-caps-btn.active {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: #fff;
+    }
+  `);
+
+  document.documentElement.appendChild(host);
+  return iframe;
+}
+
+function startASLCamera() {
+  // The iframe handles webcam + MediaPipe. We just listen for results.
+  console.log('[ScreenShield ASL] startASLCamera called, setting up message listener');
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'screenshield-asl-landmarks') {
+      const lms = e.data.landmarks;
+      if (lms && lms.length > 0) {
+        console.log('[ScreenShield ASL] Received landmarks, hands:', lms.length);
+      }
+      onASLResults({ multiHandLandmarks: lms });
+    }
+  });
+}
+
+// ── MediaPipe results handler ──────────────────────────────────────────────
+
+function onASLResults(results) {
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+    if (aslLetterEl) aslLetterEl.textContent = '...';
+    aslCurrentLetter = '';
+    return;
+  }
+
+  const lm = results.multiHandLandmarks[0]; // 21 landmarks
+  const letter = classifyASL(lm);
+
+  if (aslLetterEl) aslLetterEl.textContent = letter || '...';
+
+  // Word builder: hold a letter for ASL_HOLD_MS to confirm
+  if (letter && letter !== 'SPACE' && letter !== 'BKSP') {
+    if (letter === aslCurrentLetter) {
+      if (Date.now() - aslLetterStart >= ASL_HOLD_MS) {
+        // Apply caps mode
+        const ch = aslCapsMode ? letter : letter.toLowerCase();
+        aslWordBuffer += ch;
+        if (aslWordEl) aslWordEl.textContent = aslWordBuffer;
+        aslCurrentLetter = ''; // reset so not re-added
+        aslLetterStart = Date.now();
+      }
+    } else {
+      aslCurrentLetter = letter;
+      aslLetterStart = Date.now();
+    }
+  } else if (letter === 'SPACE') {
+    if (aslCurrentLetter !== 'SPACE') {
+      aslWordBuffer += ' ';
+      if (aslWordEl) aslWordEl.textContent = aslWordBuffer;
+      aslCurrentLetter = 'SPACE';
+      aslLetterStart = Date.now();
+    }
+  } else if (letter === 'BKSP') {
+    if (aslCurrentLetter !== 'BKSP') {
+      aslWordBuffer = aslWordBuffer.slice(0, -1);
+      if (aslWordEl) aslWordEl.textContent = aslWordBuffer;
+      aslCurrentLetter = 'BKSP';
+      aslLetterStart = Date.now();
+    }
+  }
+}
+
+// ── Geometric ASL classifier ───────────────────────────────────────────────
+
+/**
+ * Classifies a hand pose from 21 MediaPipe landmarks into an ASL letter.
+ * Uses pure geometric heuristics (finger extended/curled detection).
+ *
+ * Landmark indices:
+ *  0=wrist, 1-4=thumb (CMC,MCP,IP,TIP), 5-8=index (MCP,PIP,DIP,TIP),
+ *  9-12=middle, 13-16=ring, 17-20=pinky
+ *
+ * Supported: A B C D E F G H I K L N O R S T U V W X Y
+ *            + SPACE (open hand), BKSP (closed fist), ILY, thumbs-up
+ */
+function classifyASL(lm) {
+  // ── helpers ──────────────────────────────────────────────────────
+  const ext = (tip, pip) => lm[tip].y < lm[pip].y;            // finger extended
+  const curl = (tip, mcp) => lm[tip].y > lm[mcp].y;            // finger curled
+  const dist = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y); // 2-D distance
+
+  // ── per-finger state ────────────────────────────────────────────
+  const thumbOut = Math.abs(lm[4].x - lm[3].x) > 0.04;
+  const thumbUp = lm[4].y < lm[3].y && lm[4].y < lm[2].y;
+  const thumbIn = !thumbOut && !thumbUp;                      // thumb tucked
+  const indexExt = ext(8, 6);
+  const middleExt = ext(12, 10);
+  const ringExt = ext(16, 14);
+  const pinkyExt = ext(20, 18);
+
+  const indexCurl = curl(8, 5);
+  const middleCurl = curl(12, 9);
+  const ringCurl = curl(16, 13);
+  const pinkyCurl = curl(20, 17);
+
+  const allExtended = indexExt && middleExt && ringExt && pinkyExt;
+  const allCurled = indexCurl && middleCurl && ringCurl && pinkyCurl;
+
+  // partial curl: neither fully extended nor fully curled
+  const indexPartial = !indexExt && !indexCurl;
+  const middlePartial = !middleExt && !middleCurl;
+  const ringPartial = !ringExt && !ringCurl;
+  const pinkyPartial = !pinkyExt && !pinkyCurl;
+
+  // finger-tip distances (for touch detection)
+  const thumbIndexDist = dist(4, 8);
+  const thumbMiddleDist = dist(4, 12);
+  const indexMiddleDist = dist(8, 12);
+
+  // ── gestures & special ──────────────────────────────────────────
+
+  // SPACE: open hand, all fingers + thumb extended
+  if (allExtended && thumbOut) return 'SPACE';
+
+  // Thumbs up: thumb up, all fingers curled
+  if (thumbUp && allCurled) return '\uD83D\uDC4D';
+
+  // I Love You: thumb + index + pinky extended, mid + ring curled
+  if (thumbOut && indexExt && !middleExt && !ringExt && pinkyExt) return 'ILY';
+
+  // ── alphabet ────────────────────────────────────────────────────
+
+  // Y: thumb + pinky out, rest curled
+  if (thumbOut && !indexExt && !middleExt && !ringExt && pinkyExt) return 'Y';
+
+  // X: index hooked (partial curl), rest curled
+  if (indexPartial && middleCurl && ringCurl && pinkyCurl && !thumbOut) return 'X';
+
+  // W: index + middle + ring extended, pinky curled, thumb in
+  if (indexExt && middleExt && ringExt && !pinkyExt && !thumbOut) return 'W';
+
+  // V / 2: index + middle extended, ring + pinky curled
+  if (indexExt && middleExt && !ringExt && !pinkyExt && !thumbOut) return 'V';
+
+  // U: index + middle extended close together, ring + pinky curled
+  if (indexExt && middleExt && !ringExt && !pinkyExt && indexMiddleDist < 0.05) return 'U';
+
+  // R: index + middle crossed (index over middle)
+  if (indexExt && middleExt && !ringExt && !pinkyExt && lm[8].x < lm[12].x) return 'R';
+
+  // K: index + middle extended in V, thumb between them
+  if (indexExt && middleExt && !ringExt && !pinkyExt && thumbOut &&
+    lm[4].y > lm[8].y && lm[4].y < lm[12].y) return 'K';
+
+  // N: thumb between middle & ring, index + middle curled over thumb
+  if (!indexExt && !middleExt && ringCurl && pinkyCurl &&
+    lm[4].y > lm[10].y && thumbMiddleDist < 0.06) return 'N';
+
+  // T: thumb between index & middle
+  if (!indexExt && middleCurl && ringCurl && pinkyCurl &&
+    lm[4].y > lm[6].y && lm[4].y < lm[10].y) return 'T';
+
+  // L: index + thumb extended (L-shape), others curled
+  if (thumbOut && indexExt && !middleExt && !ringExt && !pinkyExt) return 'L';
+
+  // I: only pinky extended, rest curled
+  if (!indexExt && !middleExt && !ringExt && pinkyExt && !thumbOut) return 'I';
+
+  // H: index + middle extended sideways (horizontal)
+  if (indexExt && middleExt && !ringExt && !pinkyExt &&
+    Math.abs(lm[8].y - lm[12].y) < 0.04 &&
+    Math.abs(lm[8].y - lm[0].y) < 0.15) return 'H';
+
+  // G: index pointing sideways, thumb parallel
+  if (indexExt && !middleExt && !ringExt && !pinkyExt && thumbOut &&
+    Math.abs(lm[8].y - lm[5].y) < 0.06) return 'G';
+
+  // F: index + thumb touching (OK shape), middle + ring + pinky extended
+  if (thumbIndexDist < 0.05 && middleExt && ringExt && pinkyExt) return 'F';
+
+  // O: all fingertips close to thumb tip (circle)
+  if (thumbIndexDist < 0.06 && thumbMiddleDist < 0.06 &&
+    dist(4, 16) < 0.06 && dist(4, 20) < 0.08) return 'O';
+
+  // E: all fingers curled with fingertips touching thumb
+  if (allCurled && thumbIn && thumbIndexDist < 0.06) return 'E';
+
+  // D: index extended, others curled, thumb touches middle
+  if (indexExt && middleCurl && ringCurl && pinkyCurl && !thumbOut) return 'D';
+
+  // B: all 4 fingers extended, thumb across palm
+  if (allExtended && !thumbOut) return 'B';
+
+  // S: tight fist, thumb over fingers
+  if (allCurled && !thumbOut && !thumbUp &&
+    lm[4].y > lm[6].y) return 'S';
+
+  // A: fist with thumb to the side
+  if (allCurled && thumbOut) return 'A';
+
+  // BKSP: closed fist (thumb tucked in)
+  if (allCurled && thumbIn) return 'BKSP';
+
+  // C: curved hand — partially open fingers
+  if (indexPartial && middlePartial && ringPartial && thumbOut) return 'C';
+
+  return null;
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

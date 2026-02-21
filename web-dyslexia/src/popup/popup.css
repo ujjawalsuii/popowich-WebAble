@@ -370,3 +370,16 @@ footer {
 .tts-lang-select:focus {
   border-color: var(--tts);
 }
+
+/* ASL card */
+.card-asl.active {
+  border-color: #22c55e;
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(34, 197, 94, 0.06) 100%);
+}
+
+.card-asl h2 svg {
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+  margin-right: 4px;
+}

@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
   seizureSafeMode: false,
   ttsMode: false,
   ttsLanguage: 'en',
+  aslMode: false,
   sensitivity: 5,
   allowlist: []
 };
