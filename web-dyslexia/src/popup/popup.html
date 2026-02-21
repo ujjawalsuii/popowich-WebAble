@@ -26,6 +26,20 @@
 
   <main>
 
+    <!-- Voice Personalization (AI Intent) -->
+    <div class="personalize-wrapper">
+      <button id="personalize-btn" class="personalize-btn" aria-label="Personalize with Voice">
+        <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+        </svg>
+        <span>Personalize (Voice)</span>
+      </button>
+      <div id="personalize-status" class="personalize-status" hidden>Listening...</div>
+    </div>
+
     <!-- Dyslexia Friendly card -->
     <div class="card" id="card-dyslexia">
       <div class="card-row">
@@ -120,6 +134,27 @@
           <option value="pl">Polish</option>
           <option value="ml">Malayalam</option>
         </select>
+      </div>
+    </div>
+
+    <!-- Live Subtitles card -->
+    <div class="card card-subtitles" id="card-subtitles">
+      <div class="card-row">
+        <div class="card-info">
+          <h2>
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M4 6h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" stroke="#0ea5e9"
+                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M6 10h2M10 10h4" stroke="#0ea5e9" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+            Live Subtitles
+          </h2>
+          <p>Real-time captions for deaf/hard of hearing users during video calls or media playback.</p>
+        </div>
+        <label class="toggle" aria-label="Toggle Live Subtitles">
+          <input type="checkbox" id="subtitle-toggle" />
+          <span class="track"><span class="thumb"></span></span>
+        </label>
       </div>
     </div>
 

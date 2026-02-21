@@ -10,6 +10,7 @@ const els = {
   dyslexiaToggle: $('dyslexia-toggle'),
   seizureToggle: $('seizure-toggle'),
   ttsToggle: $('tts-toggle'),
+  subtitleToggle: $('subtitle-toggle'),
   sensitivitySection: $('sensitivity-section'),
   sensitivitySlider: $('sensitivity-slider'),
   sensitivityValue: $('sensitivity-value'),
@@ -19,11 +20,14 @@ const els = {
   cardDyslexia: $('card-dyslexia'),
   cardSeizure: $('card-seizure'),
   cardTts: $('card-tts'),
+  cardSubtitles: $('card-subtitles'),
   ttsLangSection: $('tts-lang-section'),
   ttsLanguage: $('tts-language'),
   cardAllowlist: $('card-allowlist'),
   aslToggle: $('asl-toggle'),
   cardAsl: $('card-asl'),
+  personalizeBtn: $('personalize-btn'),
+  personalizeStatus: $('personalize-status'),
 };
 
 let currentHostname = '';
@@ -31,6 +35,7 @@ let settings = {
   dyslexiaMode: false,
   seizureSafeMode: false,
   ttsMode: false,
+  subtitleMode: false,
   ttsLanguage: 'en',
   aslMode: false,
   sensitivity: 5,
@@ -63,12 +68,24 @@ async function init() {
   hydrateUI();
 }
 
+browser.storage.onChanged.addListener((changes) => {
+  let updated = false;
+  for (const [key, { newValue }] of Object.entries(changes)) {
+    if (key in settings) {
+      settings[key] = newValue;
+      updated = true;
+    }
+  }
+  if (updated) hydrateUI();
+});
+
 // ── Render ───────────────────────────────────────────────────
 
 function hydrateUI() {
   els.dyslexiaToggle.checked = settings.dyslexiaMode;
   els.seizureToggle.checked = settings.seizureSafeMode;
   els.ttsToggle.checked = settings.ttsMode;
+  els.subtitleToggle.checked = settings.subtitleMode;
   els.sensitivitySlider.value = settings.sensitivity;
   els.sensitivityValue.textContent = settings.sensitivity;
 
@@ -87,6 +104,7 @@ function hydrateUI() {
   els.cardDyslexia.classList.toggle('active', settings.dyslexiaMode);
   els.cardSeizure.classList.toggle('active', settings.seizureSafeMode);
   els.cardTts.classList.toggle('active', settings.ttsMode);
+  els.cardSubtitles.classList.toggle('active', settings.subtitleMode);
 
   // Language selector
   els.ttsLangSection.hidden = !settings.ttsMode;
@@ -127,6 +145,12 @@ els.ttsToggle.addEventListener('change', async () => {
   els.cardTts.classList.toggle('active', settings.ttsMode);
   els.ttsLangSection.hidden = !settings.ttsMode;
   await browser.storage.sync.set({ ttsMode: settings.ttsMode });
+});
+
+els.subtitleToggle.addEventListener('change', async () => {
+  settings.subtitleMode = els.subtitleToggle.checked;
+  els.cardSubtitles.classList.toggle('active', settings.subtitleMode);
+  await browser.storage.sync.set({ subtitleMode: settings.subtitleMode });
 });
 
 els.ttsLanguage.addEventListener('change', async () => {
@@ -170,14 +194,43 @@ els.allowlistToggle.addEventListener('change', async () => {
   els.cardAllowlist.classList.toggle('allowlisted', els.allowlistToggle.checked);
 });
 
-if (els.colorMode) {
-  els.colorMode.addEventListener('change', async () => {
-    const mode = els.colorMode.value;
-    settings.colorMode = mode;
-    applyPaletteToPopup(mode);
-    await browser.storage.sync.set({ colorMode: mode });
-  });
-}
+// ── Voice Personalization (AI Intent Parser) ─────────────────────────
+
+els.personalizeBtn.addEventListener('click', async () => {
+  els.personalizeBtn.classList.add('listening');
+  els.personalizeStatus.textContent = "Requesting microphone access on this page...";
+  els.personalizeStatus.hidden = false;
+
+  try {
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!tab) throw new Error("No active tab");
+
+    // Tell the content script in the active tab to start listening
+    await browser.tabs.sendMessage(tab.id, { action: 'start-voice-personalization' });
+  } catch (err) {
+    console.warn("Could not start voice personalization:", err);
+    els.personalizeStatus.textContent = "Error: Please refresh the page and try again.";
+    els.personalizeBtn.classList.remove('listening');
+  }
+});
+
+// Listen for updates from the content script while listening
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'voice-status-update') {
+    if (request.status) {
+      els.personalizeStatus.textContent = request.status;
+    }
+    if (request.state === 'listening') {
+      els.personalizeBtn.classList.add('listening');
+      els.personalizeStatus.hidden = false;
+    } else if (request.state === 'stopped' || request.state === 'error') {
+      els.personalizeBtn.classList.remove('listening');
+      if (request.state === 'stopped') {
+        setTimeout(() => { els.personalizeStatus.hidden = true; }, 4000);
+      }
+    }
+  }
+});
 
 // ── Boot ─────────────────────────────────────────────────────
 
