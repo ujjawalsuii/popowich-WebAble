@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   ttsMode: false,
   ttsLanguage: 'en',
   aslMode: false,
+  subtitleMode: false,
   sensitivity: 5,
   allowlist: []
 };

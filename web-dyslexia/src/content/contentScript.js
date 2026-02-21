@@ -35,6 +35,7 @@ let settings = {
   ttsMode: false,
   ttsLanguage: 'en',
   aslMode: false,
+  subtitleMode: false,
   sensitivity: 5,
   allowlist: []
 };
@@ -61,6 +62,7 @@ async function init() {
   if (settings.seizureSafeMode) enableSeizureSafeMode();
   if (settings.ttsMode) enableTTS();
   if (settings.aslMode) enableASL();
+  if (settings.subtitleMode) enableSubtitles();
 }
 
 function isAllowlisted() {
@@ -103,6 +105,9 @@ browser.storage.onChanged.addListener((changes, area) => {
   }
   if (changes.aslMode) {
     settings.aslMode ? enableASL() : disableASL();
+  }
+  if (changes.subtitleMode) {
+    settings.subtitleMode ? enableSubtitles() : disableSubtitles();
   }
 });
 
@@ -2430,6 +2435,12 @@ function startVoicePersonalization() {
       changed = true;
     }
 
+    // Live Subtitles intent
+    if (/\b(subtitles|subtitle|captions|live captions|transcribe|transcription)\b/i.test(transcript)) {
+      toUpdate.subtitleMode = true;
+      changed = true;
+    }
+
     if (changed) {
       // Use chrome.storage fallback for cross-browser compat
       const storageApi = (typeof chrome !== 'undefined' && chrome.storage) ? chrome.storage : browser.storage;
@@ -2466,6 +2477,163 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     startVoicePersonalization();
   }
 });
+
+// ── 12. Live Subtitles (Deaf / Hard of Hearing) ───────────────────────────────
+
+let subtitleOverlay = null;
+let subtitleOverlayText = null;
+let subtitleRecognition = null;
+let subtitleClearTimeout = null;
+
+function injectSubtitlesOverlay() {
+  if (subtitleOverlay) return;
+
+  subtitleOverlay = document.createElement('div');
+  subtitleOverlay.id = 'screenshield-subtitles';
+
+  // Attach shadow DOM
+  const shadow = subtitleOverlay.attachShadow({ mode: 'open' });
+
+  const style = document.createElement('style');
+  style.textContent = `
+    #subtitles-container {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      max-width: 900px;
+      text-align: center;
+      z-index: 2147483647;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .subtitle-text {
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 1.4;
+      text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black;
+      backdrop-filter: blur(4px);
+      transition: opacity 0.3s ease;
+      opacity: 0;
+    }
+    .subtitle-text.visible {
+      opacity: 1;
+    }
+    .subtitle-text.interim {
+      color: #cbd5e1;
+    }
+  `;
+
+  const container = document.createElement('div');
+  container.id = 'subtitles-container';
+
+  subtitleOverlayText = document.createElement('div');
+  subtitleOverlayText.className = 'subtitle-text';
+
+  container.appendChild(subtitleOverlayText);
+  shadow.append(style, container);
+  document.documentElement.appendChild(subtitleOverlay);
+}
+
+function enableSubtitles() {
+  isSubtitleModeActive = true;
+  injectSubtitlesOverlay();
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+
+  if (subtitleRecognition) {
+    // Already running
+    return;
+  }
+
+  subtitleRecognition = new SpeechRecognition();
+  subtitleRecognition.lang = 'en-US';
+  subtitleRecognition.continuous = true;
+  subtitleRecognition.interimResults = true; // Show words as they are spoken
+
+  subtitleRecognition.onresult = (event) => {
+    let finalTranscript = '';
+    let interimTranscript = '';
+
+    // Only process the last 3 results to prevent infinite text buildup and lagging (the "sloppy" fix)
+    const startIdx = Math.max(0, event.results.length - 3);
+
+    for (let i = startIdx; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript + ' ';
+      } else {
+        interimTranscript += event.results[i][0].transcript;
+      }
+    }
+
+    const textToShow = (finalTranscript + interimTranscript).trim();
+
+    if (textToShow.trim()) {
+      clearTimeout(subtitleClearTimeout);
+      if (subtitleOverlayText) {
+        subtitleOverlayText.textContent = textToShow;
+        subtitleOverlayText.classList.add('visible');
+        subtitleOverlayText.classList.toggle('interim', !finalTranscript);
+      }
+
+      // Auto-hide after 4 seconds of silence
+      subtitleClearTimeout = setTimeout(() => {
+        if (subtitleOverlayText) {
+          subtitleOverlayText.classList.remove('visible');
+          setTimeout(() => { if (subtitleOverlayText) subtitleOverlayText.textContent = ''; }, 300);
+        }
+      }, 4000);
+    }
+  };
+
+  subtitleRecognition.onerror = (event) => {
+    console.warn('[ScreenShield] Live Subtitles error:', event.error);
+    if (event.error === 'not-allowed' && subtitleOverlayText) {
+      subtitleOverlayText.textContent = "Please allow microphone access to use Live Subtitles.";
+      subtitleOverlayText.classList.add('visible');
+      setTimeout(() => subtitleOverlayText.classList.remove('visible'), 4000);
+      disableSubtitles();
+    }
+  };
+
+  subtitleRecognition.onend = () => {
+    // If mode is still active, restart it immediately (continuous looping)
+    if (isSubtitleModeActive && subtitleRecognition) {
+      try {
+        subtitleRecognition.start();
+      } catch (e) {
+        // Can fail if already started
+      }
+    }
+  };
+
+  try {
+    subtitleRecognition.start();
+  } catch (e) {
+    // Ignore already started errors
+  }
+}
+
+function disableSubtitles() {
+  isSubtitleModeActive = false;
+  if (subtitleRecognition) {
+    subtitleRecognition.stop();
+    subtitleRecognition = null;
+  }
+  if (subtitleOverlayText) {
+    subtitleOverlayText.classList.remove('visible');
+  }
+}
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 

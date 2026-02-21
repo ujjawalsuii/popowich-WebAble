@@ -10,6 +10,7 @@ const els = {
   dyslexiaToggle: $('dyslexia-toggle'),
   seizureToggle: $('seizure-toggle'),
   ttsToggle: $('tts-toggle'),
+  subtitleToggle: $('subtitle-toggle'),
   sensitivitySection: $('sensitivity-section'),
   sensitivitySlider: $('sensitivity-slider'),
   sensitivityValue: $('sensitivity-value'),
@@ -18,6 +19,7 @@ const els = {
   cardDyslexia: $('card-dyslexia'),
   cardSeizure: $('card-seizure'),
   cardTts: $('card-tts'),
+  cardSubtitles: $('card-subtitles'),
   ttsLangSection: $('tts-lang-section'),
   ttsLanguage: $('tts-language'),
   cardAllowlist: $('card-allowlist'),
@@ -32,6 +34,7 @@ let settings = {
   dyslexiaMode: false,
   seizureSafeMode: false,
   ttsMode: false,
+  subtitleMode: false,
   ttsLanguage: 'en',
   aslMode: false,
   sensitivity: 5,
@@ -79,6 +82,7 @@ function hydrateUI() {
   els.dyslexiaToggle.checked = settings.dyslexiaMode;
   els.seizureToggle.checked = settings.seizureSafeMode;
   els.ttsToggle.checked = settings.ttsMode;
+  els.subtitleToggle.checked = settings.subtitleMode;
   els.sensitivitySlider.value = settings.sensitivity;
   els.sensitivityValue.textContent = settings.sensitivity;
 
@@ -97,6 +101,7 @@ function hydrateUI() {
   els.cardDyslexia.classList.toggle('active', settings.dyslexiaMode);
   els.cardSeizure.classList.toggle('active', settings.seizureSafeMode);
   els.cardTts.classList.toggle('active', settings.ttsMode);
+  els.cardSubtitles.classList.toggle('active', settings.subtitleMode);
 
   // Language selector
   els.ttsLangSection.hidden = !settings.ttsMode;
@@ -127,6 +132,12 @@ els.ttsToggle.addEventListener('change', async () => {
   els.cardTts.classList.toggle('active', settings.ttsMode);
   els.ttsLangSection.hidden = !settings.ttsMode;
   await browser.storage.sync.set({ ttsMode: settings.ttsMode });
+});
+
+els.subtitleToggle.addEventListener('change', async () => {
+  settings.subtitleMode = els.subtitleToggle.checked;
+  els.cardSubtitles.classList.toggle('active', settings.subtitleMode);
+  await browser.storage.sync.set({ subtitleMode: settings.subtitleMode });
 });
 
 els.ttsLanguage.addEventListener('change', async () => {
