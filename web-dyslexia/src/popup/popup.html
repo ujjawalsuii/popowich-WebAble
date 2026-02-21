@@ -1,22 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ScreenShield</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
+
 <body>
 
   <header>
     <div class="logo">
       <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <path d="M16 2L4 7v9c0 6.6 5.1 12.7 12 14 6.9-1.3 12-7.4 12-14V7L16 2z"
-              fill="#4a90d9" opacity="0.15"/>
-        <path d="M16 2L4 7v9c0 6.6 5.1 12.7 12 14 6.9-1.3 12-7.4 12-14V7L16 2z"
-              stroke="#4a90d9" stroke-width="1.8" stroke-linejoin="round"/>
-        <path d="M11 16l3.5 3.5L21 12" stroke="#4a90d9" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M16 2L4 7v9c0 6.6 5.1 12.7 12 14 6.9-1.3 12-7.4 12-14V7L16 2z" fill="#4a90d9" opacity="0.15" />
+        <path d="M16 2L4 7v9c0 6.6 5.1 12.7 12 14 6.9-1.3 12-7.4 12-14V7L16 2z" stroke="#4a90d9" stroke-width="1.8"
+          stroke-linejoin="round" />
+        <path d="M11 16l3.5 3.5L21 12" stroke="#4a90d9" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round" />
       </svg>
       <span>ScreenShield</span>
     </div>
@@ -31,9 +32,9 @@
         <div class="card-info">
           <h2>
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <rect x="2" y="4" width="16" height="2" rx="1" fill="#4a90d9"/>
-              <rect x="2" y="9" width="12" height="2" rx="1" fill="#4a90d9"/>
-              <rect x="2" y="14" width="14" height="2" rx="1" fill="#4a90d9"/>
+              <rect x="2" y="4" width="16" height="2" rx="1" fill="#4a90d9" />
+              <rect x="2" y="9" width="12" height="2" rx="1" fill="#4a90d9" />
+              <rect x="2" y="14" width="14" height="2" rx="1" fill="#4a90d9" />
             </svg>
             Dyslexia Friendly
           </h2>
@@ -52,9 +53,9 @@
         <div class="card-info">
           <h2>
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <circle cx="10" cy="10" r="8" stroke="#f5a623" stroke-width="1.6"/>
-              <path d="M10 6v5" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="10" cy="14.5" r="1" fill="#f5a623"/>
+              <circle cx="10" cy="10" r="8" stroke="#f5a623" stroke-width="1.6" />
+              <path d="M10 6v5" stroke="#f5a623" stroke-width="2" stroke-linecap="round" />
+              <circle cx="10" cy="14.5" r="1" fill="#f5a623" />
             </svg>
             Seizure Safe
           </h2>
@@ -72,8 +73,7 @@
           <label for="sensitivity-slider">Detection sensitivity</label>
           <span class="sensitivity-badge" id="sensitivity-value">5</span>
         </div>
-        <input type="range" id="sensitivity-slider" min="1" max="10" value="5"
-               aria-label="Detection sensitivity" />
+        <input type="range" id="sensitivity-slider" min="1" max="10" value="5" aria-label="Detection sensitivity" />
         <div class="sensitivity-labels">
           <span>Lenient</span>
           <span>Aggressive</span>
@@ -87,9 +87,9 @@
         <div class="card-info">
           <h2>
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M3 8v4h3l4 4V4L6 8H3z" fill="#a855f7"/>
-              <path d="M14 6.5a4 4 0 0 1 0 7" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M16 4a7 7 0 0 1 0 12" stroke="#a855f7" stroke-width="1.3" stroke-linecap="round" opacity="0.5"/>
+              <path d="M3 8v4h3l4 4V4L6 8H3z" fill="#a855f7" />
+              <path d="M14 6.5a4 4 0 0 1 0 7" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" />
+              <path d="M16 4a7 7 0 0 1 0 12" stroke="#a855f7" stroke-width="1.3" stroke-linecap="round" opacity="0.5" />
             </svg>
             Text to Speech
           </h2>
@@ -99,6 +99,27 @@
           <input type="checkbox" id="tts-toggle" />
           <span class="track"><span class="thumb"></span></span>
         </label>
+      </div>
+      <div class="tts-lang-row" id="tts-lang-section">
+        <label for="tts-language" class="tts-lang-label">Narrate in:</label>
+        <select id="tts-language" class="tts-lang-select">
+          <option value="en">English</option>
+          <option value="fr">French</option>
+          <option value="es">Spanish</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+          <option value="ja">Japanese</option>
+          <option value="ko">Korean</option>
+          <option value="zh">Chinese</option>
+          <option value="hi">Hindi</option>
+          <option value="ar">Arabic</option>
+          <option value="ru">Russian</option>
+          <option value="nl">Dutch</option>
+          <option value="tr">Turkish</option>
+          <option value="pl">Polish</option>
+          <option value="ml">Malayalam</option>
+        </select>
       </div>
     </div>
 
@@ -125,4 +146,5 @@
   <script src="../lib/browser-polyfill.js"></script>
   <script src="popup.js"></script>
 </body>
+
 </html>

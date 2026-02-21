@@ -33,6 +33,7 @@ let settings = {
   dyslexiaMode: false,
   seizureSafeMode: false,
   ttsMode: false,
+  ttsLanguage: 'en',
   sensitivity: 5,
   allowlist: []
 };
@@ -95,20 +96,24 @@ browser.storage.onChanged.addListener((changes, area) => {
   if (changes.ttsMode) {
     settings.ttsMode ? enableTTS() : disableTTS();
   }
+  if (changes.ttsLanguage) {
+    settings.ttsLanguage = changes.ttsLanguage.newValue || 'en';
+  }
 });
 
 // ── Context menu "Narrate" handler ────────────────────────────────────────────
-browser.runtime.onMessage.addListener((msg) => {
+browser.runtime.onMessage.addListener(async (msg) => {
   if (msg.action === 'narrate-selection' && msg.text) {
-    const text = msg.text.trim();
+    let text = msg.text.trim();
     if (!text) return;
-    // If the TTS panel is active, add to feed + speak
+    // Translate if needed
+    text = await translateText(text);
     if (settings.ttsMode && ttsFeedEl) {
       addChatMessage('Narrate', text);
     } else {
-      // Speak directly even if TTS panel is off
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = ttsRate;
+      utterance.lang = settings.ttsLanguage;
       if (ttsVoice) utterance.voice = ttsVoice;
       speechSynthesis.speak(utterance);
     }
@@ -1579,7 +1584,7 @@ function enqueueTTS(text) {
   if (!ttsSpeaking) processNextTTS();
 }
 
-function processNextTTS() {
+async function processNextTTS() {
   if (ttsQueue.length === 0) {
     ttsSpeaking = false;
     updateStatus(ttsMuted ? 'Muted' : 'Listening');
@@ -1590,13 +1595,37 @@ function processNextTTS() {
   updateStatus('Speaking...');
   if (ttsStatusEl) ttsStatusEl.classList.add('speaking');
 
-  const text = ttsQueue.shift();
+  let text = ttsQueue.shift();
+  // Auto-translate if language isn't English
+  text = await translateText(text);
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = ttsRate;
+  utterance.lang = settings.ttsLanguage;
   if (ttsVoice) utterance.voice = ttsVoice;
   utterance.onend = () => processNextTTS();
   utterance.onerror = () => processNextTTS();
   speechSynthesis.speak(utterance);
+}
+
+// ── Translation helper ────────────────────────────────────────────────────────
+
+/**
+ * Translates text to the user's chosen language via Google Translate.
+ * Returns the original text if language is English or translation fails.
+ */
+async function translateText(text) {
+  const lang = settings.ttsLanguage;
+  if (!lang || lang === 'en') return text;
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(lang)}&dt=t&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    // Response format: [[['translated text', 'original', ...]]]                
+    const translated = data?.[0]?.map(s => s[0]).join('') || text;
+    return translated;
+  } catch {
+    return text; // Fallback to original on failure
+  }
 }
 
 // ── Garbage text filter ───────────────────────────────────────────────────────

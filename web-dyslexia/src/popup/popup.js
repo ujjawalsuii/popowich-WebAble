@@ -18,6 +18,8 @@ const els = {
   cardDyslexia: $('card-dyslexia'),
   cardSeizure: $('card-seizure'),
   cardTts: $('card-tts'),
+  ttsLangSection: $('tts-lang-section'),
+  ttsLanguage: $('tts-language'),
   cardAllowlist: $('card-allowlist'),
 };
 
@@ -26,6 +28,7 @@ let settings = {
   dyslexiaMode: false,
   seizureSafeMode: false,
   ttsMode: false,
+  ttsLanguage: 'en',
   sensitivity: 5,
   allowlist: []
 };
@@ -78,6 +81,10 @@ function hydrateUI() {
   els.cardDyslexia.classList.toggle('active', settings.dyslexiaMode);
   els.cardSeizure.classList.toggle('active', settings.seizureSafeMode);
   els.cardTts.classList.toggle('active', settings.ttsMode);
+
+  // Language selector
+  els.ttsLangSection.hidden = !settings.ttsMode;
+  els.ttsLanguage.value = settings.ttsLanguage || 'en';
 }
 
 // ── Event handlers ───────────────────────────────────────────
@@ -98,7 +105,13 @@ els.seizureToggle.addEventListener('change', async () => {
 els.ttsToggle.addEventListener('change', async () => {
   settings.ttsMode = els.ttsToggle.checked;
   els.cardTts.classList.toggle('active', settings.ttsMode);
+  els.ttsLangSection.hidden = !settings.ttsMode;
   await browser.storage.sync.set({ ttsMode: settings.ttsMode });
+});
+
+els.ttsLanguage.addEventListener('change', async () => {
+  settings.ttsLanguage = els.ttsLanguage.value;
+  await browser.storage.sync.set({ ttsLanguage: settings.ttsLanguage });
 });
 
 els.sensitivitySlider.addEventListener('input', () => {

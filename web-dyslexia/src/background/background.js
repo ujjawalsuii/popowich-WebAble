@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   dyslexiaMode: false,
   seizureSafeMode: false,
   ttsMode: false,
+  ttsLanguage: 'en',
   sensitivity: 5,
   allowlist: []
 };
