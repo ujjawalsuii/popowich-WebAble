@@ -229,8 +229,10 @@ function predictFromModel(x63) {
 let useScreenCapture = false;
 let currentStream = null;
 let currentCam = null;
+let screenLoopId = null;
 let handsInstance = null;
 let mpBaseUrl = '';
+let screenProcessing = false;
 
 // Listen for toggle message from content script
 window.addEventListener('message', async (e) => {
@@ -241,127 +243,167 @@ window.addEventListener('message', async (e) => {
   }
 });
 
-async function startVideoStream() {
-  const video = document.getElementById('cam');
-
+function stopCurrentSource() {
   if (currentCam) {
-    currentCam.stop();
+    try { currentCam.stop(); } catch { }
     currentCam = null;
   }
+  if (screenLoopId) {
+    cancelAnimationFrame(screenLoopId);
+    screenLoopId = null;
+  }
+  screenProcessing = false;
   if (currentStream) {
     currentStream.getTracks().forEach(t => t.stop());
     currentStream = null;
   }
+}
+
+function startScreenLoop(video) {
+  async function loop() {
+    if (!useScreenCapture) return;
+    if (!screenProcessing && handsInstance && video.readyState >= 2) {
+      screenProcessing = true;
+      try {
+        await handsInstance.send({ image: video });
+      } catch (err) {
+        console.warn('[ASL Screen] Frame error:', err);
+      }
+      screenProcessing = false;
+    }
+    screenLoopId = requestAnimationFrame(loop);
+  }
+  screenLoopId = requestAnimationFrame(loop);
+}
+
+async function initHands() {
+  if (handsInstance) return;
+
+  /* global Hands, Camera */
+  if (typeof Hands === 'undefined') {
+    console.error('[ASL Frame] Hands class not found!');
+    setHudStatus('MediaPipe missing');
+    return;
+  }
+
+  handsInstance = new Hands({
+    locateFile: function (f) {
+      return mpBaseUrl + f;
+    }
+  });
+  handsInstance.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 0,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.4
+  });
+
+  handsInstance.onResults(function (results) {
+    const lms = results.multiHandLandmarks || [];
+    if (lms.length > 0) {
+      lastLandmarks = lms[0];
+      lastHandedness = results.multiHandedness?.[0]?.label || 'Unknown';
+    } else {
+      lastLandmarks = null;
+      lastHandedness = 'Unknown';
+    }
+
+    window.parent.postMessage({
+      type: 'screenshield-asl-landmarks',
+      landmarks: lms,
+      handedness: lastHandedness,
+      ts: Date.now(),
+    }, '*');
+
+    if (!lastLandmarks) {
+      setHudStatus(useScreenCapture ? 'Screen: No hand' : 'No hand');
+      window.parent.postMessage({
+        type: 'screenshield-asl-prediction',
+        letter: null,
+        confidence: 0,
+        modelReady,
+        handedness: lastHandedness,
+        ts: Date.now(),
+      }, '*');
+      return;
+    }
+
+    const x63 = normalizeAndFlatten(lastLandmarks, {
+      mirrorX: mirrorLeftToRight && lastHandedness === 'Left'
+    });
+
+    const raw = predictFromModel(x63);
+
+    if (raw.letter) {
+      setHudStatus(`Pred ${raw.letter} ${Math.round(raw.confidence * 100)}%`);
+    } else {
+      setHudStatus(modelReady ? 'Hand detected' : 'Hand detected (fallback)');
+    }
+
+    window.parent.postMessage({
+      type: 'screenshield-asl-prediction',
+      letter: raw.letter,
+      confidence: Number(raw.confidence.toFixed(4)),
+      modelReady,
+      handedness: lastHandedness,
+      ts: Date.now(),
+    }, '*');
+  });
+}
+
+async function startVideoStream() {
+  const video = document.getElementById('cam');
+  stopCurrentSource();
 
   try {
     if (useScreenCapture) {
       currentStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: "browser" }
+        video: true,
+        audio: false
       });
       // If user stops sharing via browser UI, revert to webcam
       currentStream.getVideoTracks()[0].onended = () => {
         if (useScreenCapture) {
           useScreenCapture = false;
+          setHudStatus('Screen stopped, switching to Camera...');
           startVideoStream();
         }
       };
+
+      // Let the video element size naturally for screen content
+      video.style.objectFit = 'contain';
     } else {
       currentStream = await navigator.mediaDevices.getUserMedia({
         video: { width: 320, height: 240, facingMode: 'user' }
       });
+      video.style.objectFit = 'cover';
     }
 
     video.srcObject = currentStream;
     await video.play();
     setHudStatus(useScreenCapture ? 'Screen ready' : 'Camera ready');
 
-    if (!handsInstance) {
-      /* global Hands, Camera */
-      if (typeof Hands === 'undefined') {
-        console.error('[ASL Frame] Hands class not found! MediaPipe scripts may not have loaded.');
-        setHudStatus('MediaPipe missing');
-        return;
-      }
+    await initHands();
 
-      handsInstance = new Hands({
-        locateFile: function (f) {
-          return mpBaseUrl + f;
-        }
+    if (useScreenCapture) {
+      // Use manual rAF loop for screen — the Camera utility fights with display streams
+      startScreenLoop(video);
+      setHudStatus('Tracking Screen');
+    } else {
+      // Use standard Camera utility for webcam (stable, designed for this)
+      currentCam = new Camera(video, {
+        onFrame: async function () {
+          if (handsInstance) await handsInstance.send({ image: video });
+        },
+        width: 320,
+        height: 240
       });
-      handsInstance.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 0,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.4
-      });
-
-      handsInstance.onResults(function (results) {
-        const lms = results.multiHandLandmarks || [];
-        if (lms.length > 0) {
-          lastLandmarks = lms[0];
-          lastHandedness = results.multiHandedness?.[0]?.label || 'Unknown';
-        } else {
-          lastLandmarks = null;
-          lastHandedness = 'Unknown';
-        }
-
-        window.parent.postMessage({
-          type: 'screenshield-asl-landmarks',
-          landmarks: lms,
-          handedness: lastHandedness,
-          ts: Date.now(),
-        }, '*');
-
-        if (!lastLandmarks) {
-          setHudStatus('No hand');
-          window.parent.postMessage({
-            type: 'screenshield-asl-prediction',
-            letter: null,
-            confidence: 0,
-            modelReady,
-            handedness: lastHandedness,
-            ts: Date.now(),
-          }, '*');
-          return;
-        }
-
-        const x63 = normalizeAndFlatten(lastLandmarks, {
-          mirrorX: mirrorLeftToRight && lastHandedness === 'Left'
-        });
-
-        const raw = predictFromModel(x63);
-
-        if (raw.letter) {
-          setHudStatus(`Pred ${raw.letter} ${Math.round(raw.confidence * 100)}%`);
-        } else {
-          setHudStatus(modelReady ? 'Hand detected' : 'Hand detected (fallback)');
-        }
-
-        window.parent.postMessage({
-          type: 'screenshield-asl-prediction',
-          letter: raw.letter,
-          confidence: Number(raw.confidence.toFixed(4)),
-          modelReady,
-          handedness: lastHandedness,
-          ts: Date.now(),
-        }, '*');
-      });
-
-    } // end if !handsInstance
-
-    currentCam = new Camera(video, {
-      onFrame: async function () {
-        if (handsInstance) await handsInstance.send({ image: video });
-      },
-      width: 320,
-      height: 240
-    });
-    currentCam.start();
-    setHudStatus(useScreenCapture ? 'Tracking Screen' : 'Tracking Camera');
+      currentCam.start();
+      setHudStatus('Tracking Camera');
+    }
   } catch (err) {
     setHudStatus(useScreenCapture ? 'Screen error' : 'Camera error');
     console.error('[ASL Frame] Failed to start stream:', err);
-    // Fallback if screen fails
     if (useScreenCapture) {
       useScreenCapture = false;
       startVideoStream();
