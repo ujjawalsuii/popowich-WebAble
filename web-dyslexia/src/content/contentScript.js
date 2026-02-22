@@ -2681,11 +2681,10 @@ function injectSubtitlesOverlay() {
   subtitleOverlay = document.createElement('div');
   subtitleOverlay.id = 'screenshield-subtitles';
 
-  // Attach shadow DOM
   const shadow = subtitleOverlay.attachShadow({ mode: 'open' });
 
-  const style = document.createElement('style');
-  style.textContent = `
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(`
     #subtitles-container {
       position: fixed;
       bottom: 60px;
@@ -2721,7 +2720,8 @@ function injectSubtitlesOverlay() {
     .subtitle-text.interim {
       color: #cbd5e1;
     }
-  `;
+  `);
+  shadow.adoptedStyleSheets = [sheet];
 
   const container = document.createElement('div');
   container.id = 'subtitles-container';
@@ -2730,7 +2730,7 @@ function injectSubtitlesOverlay() {
   subtitleOverlayText.className = 'subtitle-text';
 
   container.appendChild(subtitleOverlayText);
-  shadow.append(style, container);
+  shadow.append(container);
   document.documentElement.appendChild(subtitleOverlay);
 }
 
