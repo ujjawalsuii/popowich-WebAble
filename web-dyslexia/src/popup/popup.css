@@ -1,4 +1,4 @@
-/* ScreenShield Popup Styles */
+/* ScreenShield popup — refreshed product-style UI */
 
 *,
 *::before,
@@ -10,48 +10,67 @@
 
 :root {
   --bg: #0f0f1a;
-  --surface: #1a1a2e;
-  --surface-2: #22223b;
-  --border: #2d2d4a;
-  --text: #e8e8f0;
-  --text-muted: #8888aa;
-  --text-primary: #e8e8f0;
-  --text-secondary: #8888aa;
+  --surface: #171a2b;
+  --surface-2: #21263c;
+  --border: #303956;
+  --text: #eaf0ff;
+  --text-muted: #95a4c5;
+  --text-primary: #eaf0ff;
+  --text-secondary: #95a4c5;
   --accent: #4a90d9;
-  --accent-dim: rgba(74, 144, 217, 0.15);
+  --accent-dim: rgba(74, 144, 217, 0.16);
   --warn: #f5a623;
-  --on: #34c759;
-  --error: #e74c3c;
+  --on: #22c55e;
+  --error: #ef4444;
   --tts: #a855f7;
-  --tts-dim: rgba(168, 85, 247, 0.15);
-  --radius: 12px;
-  --radius-sm: 8px;
+  --tts-dim: rgba(168, 85, 247, 0.14);
+  --radius: 14px;
+  --radius-sm: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f1f5ff;
+    --surface: #ffffff;
+    --surface-2: #f3f6ff;
+    --border: #d5dff3;
+    --text: #15233d;
+    --text-muted: #637494;
+    --text-primary: #15233d;
+    --text-secondary: #637494;
+    --accent: #2563eb;
+    --accent-dim: rgba(37, 99, 235, 0.12);
+    --warn: #d97706;
+    --on: #16a34a;
+    --error: #dc2626;
+    --tts: #9333ea;
+    --tts-dim: rgba(147, 51, 234, 0.12);
+  }
 }
 
 body {
-  width: 320px;
-  background: var(--bg);
+  width: 344px;
+  max-height: 600px;
+  background: radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 12%, transparent 88%), transparent 52%), var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
-
-/* ── Header ─────────────────────────────────────────────── */
 
 header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px 10px;
+  padding: 14px 14px 10px;
   border-bottom: 1px solid var(--border);
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
 }
 
 .logo svg {
@@ -63,32 +82,44 @@ header {
 .logo span {
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: -0.3px;
-  color: var(--text);
+  letter-spacing: -0.2px;
 }
 
 .version {
   font-size: 11px;
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
-
-/* ── Main ────────────────────────────────────────────────── */
 
 main {
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.popup-subtitle {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 2px 4px 0;
+}
+
+.popup-section {
+  display: grid;
   gap: 8px;
 }
 
-/* ── Cards ───────────────────────────────────────────────── */
+.section-title {
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 700;
+  padding: 0 4px;
+}
 
 .personalize-wrapper {
-  margin-bottom: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .personalize-btn {
@@ -97,94 +128,97 @@ main {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  min-height: 42px;
   border-radius: var(--radius);
-  padding: 12px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 82%, var(--accent) 18%), var(--surface));
   color: var(--text);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
+  font: inherit;
+  font-weight: 650;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .personalize-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 65%, var(--accent) 35%), var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--border) 35%);
+}
+
+.personalize-btn:active {
+  transform: translateY(1px);
+}
+
+.personalize-btn:focus-visible,
+.toggle input:focus-visible + .track,
+.colormode-select:focus-visible,
+.tts-lang-select:focus-visible,
+input[type='range']:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent 30%);
+  outline-offset: 2px;
 }
 
 .personalize-btn.listening {
-  background: rgba(245, 166, 35, 0.1);
-  border-color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 70%, var(--border) 30%);
   color: var(--warn);
 }
 
-.personalize-btn .mic-icon {
-  width: 18px;
-  height: 18px;
+.mic-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .personalize-btn.listening .mic-icon {
-  animation: pulse 1.5s infinite;
+  animation: pulse 1.25s ease-in-out infinite;
 }
 
 @keyframes pulse {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-
-  50% {
-    transform: scale(1.15);
-    opacity: 0.7;
-  }
-
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.12); opacity: 0.72; }
 }
 
 .personalize-status {
   text-align: center;
   font-size: 11px;
   color: var(--warn);
-  font-weight: 500;
 }
 
 .card {
-  background: var(--surface);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, #000 12%), var(--surface));
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 14px;
-  transition: border-color 0.2s;
+  padding: 11px 12px;
+  transition: border-color 0.18s ease, background 0.18s ease;
 }
 
 .card.active {
   border-color: var(--accent);
-  background: linear-gradient(135deg, var(--surface) 0%, rgba(74, 144, 217, 0.06) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 70%, var(--accent) 30%), var(--surface));
+}
+
+.card-asl.active {
+  border-color: #22c55e;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 72%, #22c55e 28%), var(--surface));
 }
 
 .card-tts.active {
   border-color: var(--tts);
-  background: linear-gradient(135deg, var(--surface) 0%, rgba(168, 85, 247, 0.06) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 72%, var(--tts) 28%), var(--surface));
 }
 
 .card-subtitles.active {
   border-color: #0ea5e9;
-  background: linear-gradient(135deg, var(--surface) 0%, rgba(14, 165, 233, 0.06) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 72%, #0ea5e9 28%), var(--surface));
 }
 
 .card-allowlist.allowlisted {
   border-color: var(--on);
-  background: linear-gradient(135deg, var(--surface) 0%, rgba(52, 199, 89, 0.06) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 74%, var(--on) 26%), var(--surface));
 }
 
 .card-row {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .card-info {
@@ -195,11 +229,11 @@ main {
 .card-info h2 {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 3px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
 }
 
 .card-info h2 svg {
@@ -210,24 +244,21 @@ main {
 
 .card-info p {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   line-height: 1.45;
 }
 
 .domain {
-  font-family: 'SFMono-Regular', 'Consolas', monospace;
-  font-size: 11px !important;
+  font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace;
   color: var(--accent) !important;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
-
-/* ── Toggle switch ───────────────────────────────────────── */
 
 .toggle {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
   flex-shrink: 0;
   cursor: pointer;
 }
@@ -240,47 +271,39 @@ main {
 }
 
 .track {
-  display: block;
-  width: 40px;
-  height: 22px;
-  background: var(--surface-2);
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
   border: 1px solid var(--border);
-  border-radius: 11px;
+  background: var(--surface-2);
   position: relative;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.16s ease, border-color 0.16s ease;
 }
 
 .thumb {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: var(--text-muted);
-  transition: transform 0.2s, background 0.2s;
+  background: color-mix(in srgb, var(--text-muted) 85%, white 15%);
+  transition: transform 0.16s ease, background 0.16s ease;
 }
 
-.toggle input:checked+.track {
+.toggle input:checked + .track {
   background: var(--accent);
   border-color: var(--accent);
 }
 
-.toggle input:checked+.track .thumb {
+.toggle input:checked + .track .thumb {
   transform: translateX(18px);
   background: #fff;
 }
 
-.toggle input:focus-visible+.track {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* ── Sensitivity section ─────────────────────────────────── */
-
 .sensitivity-section {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
 }
 
@@ -292,61 +315,54 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 7px;
 }
 
 .sensitivity-header label {
   font-size: 11px;
-  color: var(--text-muted);
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .sensitivity-badge {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 20px;
-  padding: 1px 8px;
-  font-size: 11px;
-  font-weight: 700;
   min-width: 28px;
   text-align: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent 40%);
 }
 
-input[type="range"] {
+input[type='range'] {
   width: 100%;
   appearance: none;
   -webkit-appearance: none;
   height: 4px;
-  border-radius: 2px;
+  border-radius: 999px;
   background: var(--border);
-  outline: none;
   cursor: pointer;
 }
 
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
+input[type='range']::-webkit-slider-thumb {
   appearance: none;
-  width: 16px;
-  height: 16px;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
+  border: none;
   background: var(--accent);
-  cursor: pointer;
-  box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.2);
-  transition: box-shadow 0.15s;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent 70%);
 }
 
-input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+input[type='range']::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
   border: none;
   border-radius: 50%;
   background: var(--accent);
-  cursor: pointer;
-}
-
-input[type="range"]:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 4px rgba(74, 144, 217, 0.4);
 }
 
 .sensitivity-labels {
@@ -357,150 +373,64 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   color: var(--text-muted);
 }
 
-/* ── Footer ──────────────────────────────────────────────── */
-
-footer {
-  padding: 8px 16px 12px;
-  border-top: 1px solid var(--border);
-  text-align: center;
-  font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: 0.3px;
-}
-
-/* ── Light mode (respects OS preference) ─────────────────── */
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f2f4fb;
-    --surface: #ffffff;
-    --surface-2: #eaecf8;
-    --border: #d0d5ee;
-    --text: #1a1a2e;
-    --text-muted: #5a5a7e;
-    --text-primary: #1a1a2e;
-    --text-secondary: #5a5a7e;
-    --accent: #3a7bc8;
-    --accent-dim: rgba(58, 123, 200, 0.12);
-    --warn: #d6780a;
-    --on: #2d9e48;
-    --error: #c0392b;
-    --tts: #9333ea;
-    --tts-dim: rgba(147, 51, 234, 0.12);
-  }
-
-  /* Toggle track needs a bit more visual weight on light bg */
-  .track {
-    background: #c8cde8;
-    border-color: #aab2d8;
-  }
-
-  .thumb {
-    background: #6868a0;
-  }
-
-  /* Slider track */
-  input[type="range"] {
-    background: #c8cde8;
-  }
-
-  /* Active card gradient uses page background so adjust for light */
-  .card.active {
-    background: linear-gradient(135deg, #ffffff 0%, rgba(58, 123, 200, 0.07) 100%);
-  }
-
-  .card-tts.active {
-    background: linear-gradient(135deg, #ffffff 0%, rgba(147, 51, 234, 0.07) 100%);
-  }
-
-  .card-allowlist.allowlisted {
-    background: linear-gradient(135deg, #ffffff 0%, rgba(45, 158, 72, 0.07) 100%);
-  }
-}
-
-/* TTS language selector */
 .tts-lang-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 18px 12px;
+  gap: 7px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
 }
 
 .tts-lang-label {
-  font-size: 12px;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   white-space: nowrap;
+}
+
+.tts-lang-select,
+.colormode-select {
+  width: 100%;
+  min-height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 0 10px;
+  cursor: pointer;
 }
 
 .tts-lang-select {
   flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 12px;
-  font-family: var(--font);
-  padding: 6px 8px;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.15s;
 }
-
-.tts-lang-select:focus {
-  border-color: var(--tts);
-}
-
-/* ASL card */
-.card-asl.active {
-  border-color: #22c55e;
-  background: linear-gradient(135deg, var(--surface) 0%, rgba(34, 197, 94, 0.06) 100%);
-}
-
-.card-asl h2 svg {
-  width: 18px;
-  height: 18px;
-  vertical-align: -3px;
-  margin-right: 4px;
-}
-
-/* ── Color mode selector ──────────────────────────────────── */
 
 .card-colormode .card-info {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .colormode-select-wrap {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
-.colormode-select {
-  width: 100%;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: 12px;
-  font-family: inherit;
-  padding: 8px 10px;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.colormode-select:hover,
-.colormode-select:focus {
-  border-color: var(--accent);
+footer {
+  border-top: 1px solid var(--border);
+  padding: 8px 14px 11px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.03em;
 }
 
 .sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
-  padding: 0;
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
   border: 0;
+  white-space: nowrap;
 }

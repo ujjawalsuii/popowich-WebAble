@@ -1969,6 +1969,10 @@ function parseGenericMessage(node) {
 // ΓöÇΓöÇ 10. ASL Recognition ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const SS_ASL_HOST_ID = 'screenshield-asl-host';
+const SS_ASL_PANEL_STATE_KEY = 'screenshield_asl_panel_state';
+const ASL_PANEL_MIN_WIDTH = 520;
+const ASL_PANEL_MIN_HEIGHT = 360;
+const ASL_PANEL_EDGE_MARGIN = 12;
 const ASL_PREDICTION_CONFIDENCE_THRESHOLD = 0.85;
 const ASL_PREDICTION_WINDOW_SIZE = 10;
 const ASL_IFRAME_ORIGIN = new URL(browser.runtime.getURL('content/asl-frame.html')).origin;
@@ -1981,6 +1985,8 @@ let aslFrameWindow = null;
 let aslMessageHandler = null;
 let aslLetterEl = null;
 let aslWordEl = null;
+let aslStatusEl = null;
+let aslConfidenceEl = null;
 let aslCapsEl = null;
 let aslCurrentLetter = '';
 let aslLetterStart = 0;
@@ -1988,7 +1994,58 @@ let aslWordBuffer = '';
 let aslCapsMode = false; // false = lowercase, true = UPPERCASE
 let aslPredictionHistory = [];
 let aslModelReady = false;
+let aslPanelViewportHandler = null;
 const ASL_HOLD_MS = 1200; // hold a sign this long to confirm
+
+function getExtensionLocalStorage() {
+  try {
+    if (typeof browser !== 'undefined' && browser.storage?.local) return browser.storage.local;
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) return chrome.storage.local;
+  } catch {
+    // no-op
+  }
+  return null;
+}
+
+async function loadAslPanelState() {
+  const storage = getExtensionLocalStorage();
+  if (!storage) return null;
+
+  try {
+    if (typeof storage.get === 'function' && storage.get.length <= 1) {
+      const result = await storage.get(SS_ASL_PANEL_STATE_KEY);
+      return result?.[SS_ASL_PANEL_STATE_KEY] || null;
+    }
+  } catch {
+    // fall through
+  }
+
+  try {
+    return await new Promise((resolve) => {
+      storage.get([SS_ASL_PANEL_STATE_KEY], (result) => {
+        resolve(result?.[SS_ASL_PANEL_STATE_KEY] || null);
+      });
+    });
+  } catch {
+    return null;
+  }
+}
+
+function saveAslPanelState(nextState) {
+  const storage = getExtensionLocalStorage();
+  if (!storage) return;
+
+  try {
+    const payload = { [SS_ASL_PANEL_STATE_KEY]: nextState };
+    if (typeof storage.set === 'function' && storage.set.length <= 1) {
+      storage.set(payload).catch(() => { /* ignore */ });
+      return;
+    }
+    storage.set(payload, () => { /* ignore */ });
+  } catch {
+    // ignore persistence failures
+  }
+}
 
 function enableASL() {
   if (document.getElementById(SS_ASL_HOST_ID)) return;
@@ -2004,12 +2061,18 @@ function disableASL() {
     aslMessageHandler = null;
   }
   document.getElementById(SS_ASL_HOST_ID)?.remove();
+  if (aslPanelViewportHandler) {
+    window.removeEventListener('resize', aslPanelViewportHandler);
+    aslPanelViewportHandler = null;
+  }
   aslHands = null;
   aslShadow = null;
   aslIframeEl = null;
   aslFrameWindow = null;
   aslLetterEl = null;
   aslWordEl = null;
+  aslStatusEl = null;
+  aslConfidenceEl = null;
   aslWordBuffer = '';
   aslCurrentLetter = '';
   aslPredictionHistory = [];
@@ -2020,7 +2083,7 @@ function injectASLPanel() {
   const host = document.createElement('div');
   host.id = SS_ASL_HOST_ID;
   host.style.cssText =
-    'position:fixed;bottom:16px;left:16px;z-index:2147483647;pointer-events:none;';
+    'position:fixed;top:16px;left:16px;z-index:2147483647;pointer-events:none;';
 
   const shadow = host.attachShadow({ mode: 'open' });
   aslShadow = shadow;
@@ -2031,7 +2094,57 @@ function injectASLPanel() {
   // Header
   const header = document.createElement('div');
   header.className = 'asl-header';
-  header.textContent = 'ASL Recognition';
+
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'asl-title-wrap';
+
+  const title = document.createElement('h2');
+  title.className = 'asl-title';
+  title.textContent = 'ASL Live Captions';
+
+  const subtitle = document.createElement('p');
+  subtitle.className = 'asl-subtitle';
+  subtitle.textContent = 'Real-time fingerspelling';
+
+  titleWrap.append(title, subtitle);
+
+  const headerActions = document.createElement('div');
+  headerActions.className = 'asl-header-actions';
+
+  const collapseBtn = document.createElement('button');
+  collapseBtn.type = 'button';
+  collapseBtn.className = 'asl-icon-btn';
+  collapseBtn.setAttribute('aria-label', 'Minimize ASL panel');
+  collapseBtn.setAttribute('aria-expanded', 'true');
+  collapseBtn.title = 'Minimize';
+  collapseBtn.textContent = '−';
+
+  const maximizeBtn = document.createElement('button');
+  maximizeBtn.type = 'button';
+  maximizeBtn.className = 'asl-icon-btn';
+  maximizeBtn.setAttribute('aria-label', 'Maximize ASL panel');
+  maximizeBtn.setAttribute('aria-pressed', 'false');
+  maximizeBtn.title = 'Maximize';
+  maximizeBtn.textContent = '□';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'asl-icon-btn danger';
+  closeBtn.setAttribute('aria-label', 'Close ASL panel');
+  closeBtn.title = 'Close';
+  closeBtn.textContent = '✕';
+
+  headerActions.append(collapseBtn, maximizeBtn, closeBtn);
+  header.append(titleWrap, headerActions);
+
+  const body = document.createElement('div');
+  body.className = 'asl-body';
+
+  const previewCol = document.createElement('div');
+  previewCol.className = 'asl-preview-col';
+
+  const previewFrame = document.createElement('div');
+  previewFrame.className = 'asl-preview-frame';
 
   // Webcam + MediaPipe iframe (runs in extension context, bypasses page CSP)
   const iframe = document.createElement('iframe');
@@ -2042,13 +2155,38 @@ function injectASLPanel() {
   iframe.setAttribute('tabindex', '0');
   aslIframeEl = iframe;
 
-  // Letter display
+  previewFrame.appendChild(iframe);
+  previewCol.appendChild(previewFrame);
+
+  const outputCol = document.createElement('div');
+  outputCol.className = 'asl-output-col';
+
+  const captionsBox = document.createElement('div');
+  captionsBox.className = 'asl-captions-wrap';
+
+  const captionsLabel = document.createElement('span');
+  captionsLabel.className = 'asl-label';
+  captionsLabel.textContent = 'Live captions';
+
+  const captionsLog = document.createElement('div');
+  captionsLog.className = 'asl-captions-box';
+  captionsLog.setAttribute('role', 'log');
+  captionsLog.setAttribute('aria-live', 'polite');
+
+  const wordVal = document.createElement('span');
+  wordVal.className = 'asl-word';
+  wordVal.textContent = '';
+  aslWordEl = wordVal;
+
+  captionsLog.appendChild(wordVal);
+  captionsBox.append(captionsLabel, captionsLog);
+
   const letterBox = document.createElement('div');
   letterBox.className = 'asl-letter-box';
 
   const letterLabel = document.createElement('span');
   letterLabel.className = 'asl-label';
-  letterLabel.textContent = 'Detected:';
+  letterLabel.textContent = 'Current letter';
 
   const letterVal = document.createElement('span');
   letterVal.className = 'asl-letter';
@@ -2057,17 +2195,31 @@ function injectASLPanel() {
 
   letterBox.append(letterLabel, letterVal);
 
-  // Word buffer display
-  const wordBox = document.createElement('div');
-  wordBox.className = 'asl-word-box';
+  const statusRow = document.createElement('div');
+  statusRow.className = 'asl-status-row';
 
-  const wordVal = document.createElement('span');
-  wordVal.className = 'asl-word';
-  wordVal.textContent = '';
-  aslWordEl = wordVal;
+  const statusVal = document.createElement('span');
+  statusVal.className = 'asl-status';
+  statusVal.textContent = 'No hand ⚠️';
+  aslStatusEl = statusVal;
+
+  const confidenceVal = document.createElement('span');
+  confidenceVal.className = 'asl-confidence';
+  confidenceVal.textContent = 'Confidence --';
+  aslConfidenceEl = confidenceVal;
+
+  statusRow.append(statusVal, confidenceVal);
+  outputCol.append(captionsBox, letterBox, statusRow);
+
+  body.append(previewCol, outputCol);
+
+  // Footer controls
+  const footer = document.createElement('div');
+  footer.className = 'asl-footer';
 
   const sendBtn = document.createElement('button');
   sendBtn.className = 'asl-send-btn';
+  sendBtn.setAttribute('aria-label', 'Send recognized text');
   sendBtn.textContent = 'Send';
   sendBtn.addEventListener('click', () => {
     if (aslWordBuffer.trim()) {
@@ -2083,6 +2235,8 @@ function injectASLPanel() {
 
   const clearBtn = document.createElement('button');
   clearBtn.className = 'asl-clear-btn';
+  clearBtn.setAttribute('aria-label', 'Clear');
+  clearBtn.title = 'Clear';
   clearBtn.textContent = 'Clear';
   clearBtn.addEventListener('click', () => {
     aslWordBuffer = '';
@@ -2091,17 +2245,15 @@ function injectASLPanel() {
 
   const screenBtn = document.createElement('button');
   screenBtn.className = 'asl-screen-btn';
+  screenBtn.setAttribute('aria-label', 'Toggle screen source');
   screenBtn.textContent = 'Screen';
   screenBtn.title = 'Watch Meet/Screen instead of Webcam';
   screenBtn.addEventListener('click', () => {
-    // Tell the iframe to switch modes
     const win = aslIframeEl?.contentWindow;
     if (win) {
       win.postMessage({ type: 'screenshield-asl-toggle-source' }, '*');
     }
   });
-
-  wordBox.append(wordVal, sendBtn, clearBtn, screenBtn);
 
   // Toolbar: Caps toggle + Backspace
   const toolbar = document.createElement('div');
@@ -2109,6 +2261,7 @@ function injectASLPanel() {
 
   const capsBtn = document.createElement('button');
   capsBtn.className = 'asl-caps-btn';
+  capsBtn.setAttribute('aria-label', 'Toggle caps mode');
   capsBtn.textContent = 'Aa';
   capsBtn.title = 'Toggle CAPS';
   aslCapsEl = capsBtn;
@@ -2120,6 +2273,7 @@ function injectASLPanel() {
 
   const bkspBtn = document.createElement('button');
   bkspBtn.className = 'asl-bksp-btn';
+  bkspBtn.setAttribute('aria-label', 'Backspace');
   bkspBtn.textContent = '\u232B';
   bkspBtn.title = 'Backspace';
   bkspBtn.addEventListener('click', () => {
@@ -2128,147 +2282,658 @@ function injectASLPanel() {
   });
 
   const spaceBtn = document.createElement('button');
+  spaceBtn.setAttribute('aria-label', 'Insert space');
   spaceBtn.className = 'asl-space-btn';
-  spaceBtn.textContent = 'ΓÉú';
+  spaceBtn.textContent = 'Space';
   spaceBtn.title = 'Space';
   spaceBtn.addEventListener('click', () => {
     aslWordBuffer += ' ';
     if (aslWordEl) aslWordEl.textContent = aslWordBuffer;
   });
 
-  toolbar.append(capsBtn, spaceBtn, bkspBtn);
+  const actionRow = document.createElement('div');
+  actionRow.className = 'asl-actions';
+  actionRow.append(sendBtn, clearBtn, screenBtn);
 
-  panel.append(header, iframe, letterBox, toolbar, wordBox);
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'asl-resize-handle';
+  resizeHandle.setAttribute('aria-hidden', 'true');
+
+  toolbar.append(capsBtn, spaceBtn, bkspBtn);
+  footer.append(toolbar, actionRow);
+
+  closeBtn.addEventListener('click', () => {
+    browser.storage.sync.set({ aslMode: false });
+  });
+
+  panel.append(header, body, footer, resizeHandle);
   shadow.appendChild(panel);
 
   createShadowStyles(shadow, `
-    :host { all: initial; display: block; }
+    :host {
+      all: initial;
+      display: block;
+      --bg: #0b1020;
+      --panel: #121a2b;
+      --text: #e8eefc;
+      --muted: #97a3bf;
+      --border: #293552;
+      --accent: #702963;
+      --accent-soft: #8a4d80;
+      --accent-strong: #58204e;
+      --accent-ring: rgba(112, 41, 99, 0.45);
+      --danger: #ef4444;
+      --success: #a56498;
+    }
+    @media (prefers-color-scheme: light) {
+      :host {
+        --bg: #f6f8ff;
+        --panel: #ffffff;
+        --text: #122035;
+        --muted: #5b677f;
+        --border: #d5deef;
+        --accent: #702963;
+        --accent-soft: #8a4d80;
+        --accent-strong: #58204e;
+        --accent-ring: rgba(112, 41, 99, 0.35);
+        --danger: #dc2626;
+        --success: #8a4d80;
+      }
+    }
     .asl-panel {
       pointer-events: auto;
-      width: 320px;
-      background: #13131f;
-      border: 1px solid #22c55e;
-      border-radius: 14px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+      width: min(620px, calc(100vw - 24px));
+      height: min(520px, calc(100vh - 24px));
+      min-width: ${ASL_PANEL_MIN_WIDTH}px;
+      min-height: ${ASL_PANEL_MIN_HEIGHT}px;
+      max-width: calc(100vw - 24px);
+      max-height: calc(100vh - 24px);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, var(--accent) 8%) 0%, var(--panel) 45%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.38);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
       font-size: 13px;
-      color: #e8e8f0;
+      color: var(--text);
       overflow: hidden;
-      animation: slideUp 0.3s ease forwards;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: translateY(0); }
+    .asl-panel:focus-within {
+      box-shadow: 0 0 0 2px var(--accent-ring), 0 16px 40px rgba(0,0,0,0.38);
+    }
+    .asl-panel.collapsed .asl-body,
+    .asl-panel.collapsed .asl-footer {
+      display: none;
+    }
+    .asl-panel.collapsed {
+      min-height: 0;
+      height: auto;
+      max-height: none;
+    }
+    .asl-panel.maximized {
+      border-radius: 14px;
     }
     .asl-header {
-      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 55%, transparent 45%);
+      user-select: none;
+      cursor: grab;
+    }
+    .asl-title-wrap {
+      min-width: 0;
+      pointer-events: none;
+    }
+    .asl-title {
+      margin: 0;
+      font-size: 14px;
       font-weight: 700;
+      letter-spacing: 0.01em;
+      color: var(--text);
+    }
+    .asl-subtitle {
+      margin: 2px 0 0;
       font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #22c55e;
-      border-bottom: 1px solid #2d2d4a;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .asl-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .asl-icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--panel) 86%, #000 14%);
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .asl-icon-btn:hover {
+      background: color-mix(in srgb, var(--panel) 72%, var(--accent-soft) 28%);
+      border-color: color-mix(in srgb, var(--accent) 60%, var(--border) 40%);
+    }
+    .asl-icon-btn.danger:hover {
+      background: color-mix(in srgb, var(--panel) 74%, var(--danger) 26%);
+      border-color: color-mix(in srgb, var(--danger) 62%, var(--border) 38%);
+    }
+    .asl-icon-btn:focus-visible,
+    .asl-caps-btn:focus-visible,
+    .asl-space-btn:focus-visible,
+    .asl-bksp-btn:focus-visible,
+    .asl-send-btn:focus-visible,
+    .asl-clear-btn:focus-visible,
+    .asl-screen-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .asl-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+    .asl-preview-col {
+      min-width: 0;
+      min-height: 0;
+    }
+    .asl-preview-frame {
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: #000;
+      min-height: 100%;
+      height: 100%;
     }
     .asl-iframe {
       width: 100%;
-      height: 240px;
+      height: 100%;
+      min-height: 210px;
       border: none;
       background: #000;
       display: block;
     }
+    .asl-output-col {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto auto;
+      gap: 10px;
+    }
+    .asl-letter-box,
+    .asl-captions-wrap,
+    .asl-status-row {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--panel) 92%, #000 8%);
+    }
     .asl-letter-box {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-bottom: 1px solid #2d2d4a;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      min-height: 38px;
     }
     .asl-label {
-      font-size: 10px;
-      color: #8888aa;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.02em;
     }
     .asl-letter {
-      font-size: 28px;
-      font-weight: 800;
-      color: #22c55e;
-      flex: 1;
-      text-align: center;
+      width: auto;
+      font-size: 17px;
+      font-weight: 750;
+      color: var(--success);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
     }
-    .asl-word-box {
+    .asl-captions-wrap {
       display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 8px 10px;
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px;
+      min-height: 0;
+    }
+    .asl-captions-box {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 52%, transparent 48%);
+      padding: 12px;
+      min-height: 136px;
+      height: 100%;
+      overflow-y: auto;
     }
     .asl-word {
       flex: 1;
-      font-size: 14px;
-      font-weight: 600;
-      color: #d0d0e8;
-      min-height: 20px;
-      word-break: break-all;
+      font-size: 17px;
+      font-weight: 650;
+      line-height: 1.45;
+      color: var(--text);
+      min-height: 30px;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
-    .asl-send-btn, .asl-clear-btn {
-      background: #2d2d4a;
-      border: 1px solid #3d3d5c;
-      color: #e8e8f0;
-      border-radius: 6px;
-      padding: 4px 8px;
+    .asl-status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      min-height: 38px;
+      font-size: 11px;
+    }
+    .asl-status {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .asl-confidence {
+      color: var(--muted);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .asl-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0 12px 12px;
+    }
+    .asl-toolbar {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .asl-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .asl-caps-btn,
+    .asl-space-btn,
+    .asl-bksp-btn,
+    .asl-send-btn,
+    .asl-clear-btn,
+    .asl-screen-btn {
+      min-height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--panel) 84%, #000 16%);
+      color: var(--text);
+      padding: 6px 9px;
       cursor: pointer;
       font-size: 11px;
       font-weight: 600;
       font-family: inherit;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .asl-caps-btn:hover,
+    .asl-space-btn:hover,
+    .asl-bksp-btn:hover,
+    .asl-clear-btn:hover,
+    .asl-screen-btn:hover {
+      background: color-mix(in srgb, var(--panel) 70%, var(--accent-soft) 30%);
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--border) 45%);
     }
     .asl-send-btn {
-      background: #22c55e;
-      border-color: #22c55e;
+      background: color-mix(in srgb, var(--accent) 82%, #000 18%);
+      border-color: color-mix(in srgb, var(--accent) 70%, var(--border) 30%);
       color: #fff;
     }
-    .asl-screen-btn {
-      background: #3b82f6;
-      border: 1px solid #2563eb;
-      color: #fff;
-      border-radius: 6px;
-      padding: 4px 8px;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 600;
-      font-family: inherit;
+    .asl-send-btn:hover {
+      background: color-mix(in srgb, var(--accent-strong) 82%, #000 18%);
     }
-    .asl-send-btn:hover { background: #16a34a; }
-    .asl-clear-btn:hover { background: #3d3d5c; }
-    .asl-screen-btn:hover { background: #2563eb; }
-    .asl-toolbar {
-      display: flex;
-      gap: 4px;
-      padding: 6px 10px;
-      border-bottom: 1px solid #2d2d4a;
-    }
-    .asl-caps-btn, .asl-space-btn, .asl-bksp-btn {
-      flex: 1;
-      background: #2d2d4a;
-      border: 1px solid #3d3d5c;
-      color: #e8e8f0;
-      border-radius: 6px;
-      padding: 4px 6px;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 700;
-      font-family: inherit;
-      text-align: center;
-    }
-    .asl-caps-btn:hover, .asl-space-btn:hover, .asl-bksp-btn:hover {
-      background: #3d3d5c;
+    .asl-clear-btn {
+      font-size: 12px;
+      letter-spacing: 0.01em;
     }
     .asl-caps-btn.active {
-      background: #22c55e;
-      border-color: #22c55e;
+      background: color-mix(in srgb, var(--accent) 78%, #000 22%);
+      border-color: color-mix(in srgb, var(--accent) 65%, var(--border) 35%);
       color: #fff;
+    }
+    .asl-resize-handle {
+      position: absolute;
+      right: 3px;
+      bottom: 3px;
+      width: 16px;
+      height: 16px;
+      cursor: nwse-resize;
+      opacity: 0.9;
+      border-radius: 4px;
+    }
+    .asl-resize-handle::before {
+      content: '';
+      position: absolute;
+      right: 3px;
+      bottom: 3px;
+      width: 10px;
+      height: 10px;
+      border-right: 2px solid color-mix(in srgb, var(--accent) 75%, #fff 25%);
+      border-bottom: 2px solid color-mix(in srgb, var(--accent) 75%, #fff 25%);
+      border-radius: 2px;
+    }
+    .asl-panel.collapsed .asl-resize-handle,
+    .asl-panel.maximized .asl-resize-handle {
+      display: none;
     }
   `);
 
   document.documentElement.appendChild(host);
+
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const toFinite = (value, fallback) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
+  };
+
+  const panelState = {
+    left: ASL_PANEL_EDGE_MARGIN,
+    top: ASL_PANEL_EDGE_MARGIN,
+    width: 620,
+    height: 520,
+    minimized: false,
+    maximized: false,
+    restoreBounds: null,
+  };
+
+  let dragSession = null;
+  let resizeSession = null;
+
+  const getViewportLimits = () => {
+    const maxWidth = Math.max(320, window.innerWidth - (ASL_PANEL_EDGE_MARGIN * 2));
+    const maxHeight = Math.max(220, window.innerHeight - (ASL_PANEL_EDGE_MARGIN * 2));
+    const minWidth = Math.min(ASL_PANEL_MIN_WIDTH, maxWidth);
+    const minHeight = Math.min(ASL_PANEL_MIN_HEIGHT, maxHeight);
+    return { minWidth, minHeight, maxWidth, maxHeight };
+  };
+
+  const normalizeBounds = (bounds) => {
+    const next = bounds || {};
+    const limits = getViewportLimits();
+
+    const width = clamp(
+      Math.round(toFinite(next.width, panelState.width)),
+      limits.minWidth,
+      limits.maxWidth,
+    );
+    const height = clamp(
+      Math.round(toFinite(next.height, panelState.height)),
+      limits.minHeight,
+      limits.maxHeight,
+    );
+
+    const maxLeft = Math.max(ASL_PANEL_EDGE_MARGIN, window.innerWidth - ASL_PANEL_EDGE_MARGIN - width);
+    const maxTop = Math.max(ASL_PANEL_EDGE_MARGIN, window.innerHeight - ASL_PANEL_EDGE_MARGIN - height);
+
+    const left = clamp(
+      Math.round(toFinite(next.left, panelState.left)),
+      ASL_PANEL_EDGE_MARGIN,
+      maxLeft,
+    );
+    const top = clamp(
+      Math.round(toFinite(next.top, panelState.top)),
+      ASL_PANEL_EDGE_MARGIN,
+      maxTop,
+    );
+
+    return { left, top, width, height };
+  };
+
+  const applyBounds = (bounds) => {
+    const normalized = normalizeBounds(bounds);
+    host.style.left = `${normalized.left}px`;
+    host.style.top = `${normalized.top}px`;
+    host.style.right = 'auto';
+    host.style.bottom = 'auto';
+    panel.style.width = `${normalized.width}px`;
+    panel.style.height = `${normalized.height}px`;
+    return normalized;
+  };
+
+  const commitBounds = (bounds) => {
+    const applied = applyBounds(bounds);
+    panelState.left = applied.left;
+    panelState.top = applied.top;
+    panelState.width = applied.width;
+    panelState.height = applied.height;
+    return applied;
+  };
+
+  const applyMaximizedBounds = () => {
+    const limits = getViewportLimits();
+    const width = clamp(Math.round(window.innerWidth * 0.92), limits.minWidth, limits.maxWidth);
+    const height = clamp(Math.round(window.innerHeight * 0.9), limits.minHeight, limits.maxHeight);
+    const left = Math.round((window.innerWidth - width) / 2);
+    const top = Math.round((window.innerHeight - height) / 2);
+    return commitBounds({ left, top, width, height });
+  };
+
+  const snapshotState = () => ({
+    left: panelState.left,
+    top: panelState.top,
+    width: panelState.width,
+    height: panelState.height,
+    minimized: panelState.minimized,
+    maximized: panelState.maximized,
+    restoreBounds: panelState.restoreBounds ? {
+      left: panelState.restoreBounds.left,
+      top: panelState.restoreBounds.top,
+      width: panelState.restoreBounds.width,
+      height: panelState.restoreBounds.height,
+    } : null,
+  });
+
+  const persistPanelState = () => {
+    saveAslPanelState(snapshotState());
+  };
+
+  const renderWindowState = () => {
+    panel.classList.toggle('collapsed', panelState.minimized);
+    panel.classList.toggle('maximized', panelState.maximized);
+
+    collapseBtn.textContent = panelState.minimized ? '+' : '−';
+    collapseBtn.setAttribute('aria-expanded', String(!panelState.minimized));
+    collapseBtn.title = panelState.minimized ? 'Restore' : 'Minimize';
+
+    maximizeBtn.textContent = panelState.maximized ? '❐' : '□';
+    maximizeBtn.setAttribute('aria-pressed', String(panelState.maximized));
+    maximizeBtn.title = panelState.maximized ? 'Restore size' : 'Maximize';
+
+    header.style.cursor = panelState.maximized ? 'default' : 'grab';
+    resizeHandle.style.display = (panelState.minimized || panelState.maximized) ? 'none' : 'block';
+  };
+
+  const exitMaximizedState = () => {
+    if (!panelState.maximized) return;
+    panelState.maximized = false;
+    panelState.minimized = false;
+    const restore = panelState.restoreBounds || {
+      left: panelState.left,
+      top: panelState.top,
+      width: panelState.width,
+      height: panelState.height,
+    };
+    panelState.restoreBounds = null;
+    commitBounds(restore);
+    renderWindowState();
+  };
+
+  const toggleMinimize = () => {
+    panelState.minimized = !panelState.minimized;
+    renderWindowState();
+    persistPanelState();
+  };
+
+  const toggleMaximize = () => {
+    if (panelState.maximized) {
+      exitMaximizedState();
+    } else {
+      panelState.restoreBounds = {
+        left: panelState.left,
+        top: panelState.top,
+        width: panelState.width,
+        height: panelState.height,
+      };
+      panelState.maximized = true;
+      panelState.minimized = false;
+      applyMaximizedBounds();
+      renderWindowState();
+    }
+    persistPanelState();
+  };
+
+  collapseBtn.addEventListener('click', toggleMinimize);
+  maximizeBtn.addEventListener('click', toggleMaximize);
+
+  header.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (panelState.maximized) return;
+    if (e.target && e.target.closest('button')) return;
+
+    const rect = host.getBoundingClientRect();
+    dragSession = {
+      pointerId: e.pointerId,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+    };
+
+    try { header.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    header.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+
+  header.addEventListener('pointermove', (e) => {
+    if (!dragSession || e.pointerId !== dragSession.pointerId) return;
+    const left = e.clientX - dragSession.offsetX;
+    const top = e.clientY - dragSession.offsetY;
+    commitBounds({ left, top, width: panelState.width, height: panelState.height });
+  });
+
+  const stopDragging = (e) => {
+    if (!dragSession) return;
+    if (e && typeof e.pointerId === 'number' && e.pointerId !== dragSession.pointerId) return;
+    try { header.releasePointerCapture(dragSession.pointerId); } catch { /* ignore */ }
+    dragSession = null;
+    renderWindowState();
+    persistPanelState();
+  };
+
+  header.addEventListener('pointerup', stopDragging);
+  header.addEventListener('pointercancel', stopDragging);
+  header.addEventListener('lostpointercapture', stopDragging);
+
+  resizeHandle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || panelState.minimized) return;
+    if (panelState.maximized) {
+      exitMaximizedState();
+    }
+
+    resizeSession = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: panelState.width,
+      startHeight: panelState.height,
+    };
+
+    try { resizeHandle.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  resizeHandle.addEventListener('pointermove', (e) => {
+    if (!resizeSession || e.pointerId !== resizeSession.pointerId) return;
+
+    const nextWidth = resizeSession.startWidth + (e.clientX - resizeSession.startX);
+    const nextHeight = resizeSession.startHeight + (e.clientY - resizeSession.startY);
+    commitBounds({
+      left: panelState.left,
+      top: panelState.top,
+      width: nextWidth,
+      height: nextHeight,
+    });
+  });
+
+  const stopResizing = (e) => {
+    if (!resizeSession) return;
+    if (e && typeof e.pointerId === 'number' && e.pointerId !== resizeSession.pointerId) return;
+    try { resizeHandle.releasePointerCapture(resizeSession.pointerId); } catch { /* ignore */ }
+    resizeSession = null;
+    persistPanelState();
+  };
+
+  resizeHandle.addEventListener('pointerup', stopResizing);
+  resizeHandle.addEventListener('pointercancel', stopResizing);
+  resizeHandle.addEventListener('lostpointercapture', stopResizing);
+
+  const initialWidth = Math.min(620, Math.max(320, window.innerWidth - (ASL_PANEL_EDGE_MARGIN * 2)));
+  const initialHeight = Math.min(520, Math.max(220, window.innerHeight - (ASL_PANEL_EDGE_MARGIN * 2)));
+  commitBounds({
+    left: ASL_PANEL_EDGE_MARGIN,
+    top: ASL_PANEL_EDGE_MARGIN,
+    width: initialWidth,
+    height: initialHeight,
+  });
+  renderWindowState();
+
+  loadAslPanelState().then((saved) => {
+    if (!saved || typeof saved !== 'object') return;
+
+    panelState.minimized = !!saved.minimized;
+    panelState.maximized = !!saved.maximized;
+
+    const restore = saved.restoreBounds && typeof saved.restoreBounds === 'object'
+      ? normalizeBounds(saved.restoreBounds)
+      : null;
+    panelState.restoreBounds = restore;
+
+    if (panelState.maximized) {
+      applyMaximizedBounds();
+    } else {
+      commitBounds({
+        left: toFinite(saved.left, panelState.left),
+        top: toFinite(saved.top, panelState.top),
+        width: toFinite(saved.width, panelState.width),
+        height: toFinite(saved.height, panelState.height),
+      });
+    }
+
+    renderWindowState();
+  }).catch(() => {
+    // ignore invalid persisted state
+  });
+
+  if (aslPanelViewportHandler) {
+    window.removeEventListener('resize', aslPanelViewportHandler);
+  }
+  aslPanelViewportHandler = () => {
+    if (panelState.maximized) {
+      applyMaximizedBounds();
+    } else {
+      commitBounds(panelState);
+    }
+    renderWindowState();
+    persistPanelState();
+  };
+  window.addEventListener('resize', aslPanelViewportHandler, { passive: true });
+
   setTimeout(() => {
     try { iframe.focus({ preventScroll: true }); } catch { /* best-effort */ }
   }, 200);
@@ -2410,6 +3075,8 @@ function applyASLLetter(letter, confidence = 0) {
       aslLetterEl.textContent = '...';
       aslLetterEl.removeAttribute('title');
     }
+    if (aslStatusEl) aslStatusEl.textContent = 'No hand ⚠️';
+    if (aslConfidenceEl) aslConfidenceEl.textContent = 'Confidence --';
     aslCurrentLetter = '';
     return;
   }
@@ -2417,6 +3084,11 @@ function applyASLLetter(letter, confidence = 0) {
   if (aslLetterEl) {
     aslLetterEl.textContent = letter;
     aslLetterEl.title = `Confidence: ${(confidence * 100).toFixed(1)}%`;
+  }
+  if (aslStatusEl) aslStatusEl.textContent = 'Hand detected ✅';
+  if (aslConfidenceEl) {
+    const pct = Math.max(0, Math.min(100, Math.round((Number(confidence) || 0) * 100)));
+    aslConfidenceEl.textContent = `Confidence ${pct}%`;
   }
 
   // Word builder: hold a letter for ASL_HOLD_MS to confirm

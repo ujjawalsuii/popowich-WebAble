@@ -22,7 +22,7 @@ let recordMode = true;
 let samples = [];
 let lastLandmarks = null;
 let lastHandedness = 'Unknown';
-let mirrorLeftToRight = true;
+const MIRROR_LEFT_TO_RIGHT = true;
 
 let modelReady = false;
 let modelLabels = [];
@@ -31,7 +31,7 @@ let modelLayers = [];
 // HUD refs
 const hud = {
   recordToggle: null,
-  mirrorToggle: null,
+  screenToggle: null,
   label: null,
   count: null,
   status: null,
@@ -40,7 +40,7 @@ const hud = {
 
 function setupHud() {
   hud.recordToggle = document.getElementById('record-toggle');
-  hud.mirrorToggle = document.getElementById('mirror-toggle');
+  hud.screenToggle = document.getElementById('screen-toggle');
   hud.label = document.getElementById('hud-label');
   hud.count = document.getElementById('hud-count');
   hud.status = document.getElementById('hud-status');
@@ -52,17 +52,15 @@ function setupHud() {
     focusFrame();
   });
 
-  hud.mirrorToggle?.addEventListener('click', () => {
-    mirrorLeftToRight = !mirrorLeftToRight;
-    updateHudMirrorState();
-    setHudStatus(mirrorLeftToRight ? 'Mirror LEFT enabled' : 'Mirror LEFT disabled');
+  hud.screenToggle?.addEventListener('click', async () => {
+    await toggleSourceMode();
     focusFrame();
   });
 
   updateHudLabel();
   updateHudCount();
   updateHudRecordState();
-  updateHudMirrorState();
+  updateHudScreenState();
   setHudStatus('No hand');
 }
 
@@ -81,6 +79,12 @@ function updateHudRecordState() {
   hud.recordToggle.classList.toggle('active', recordMode);
 }
 
+function updateHudScreenState() {
+  if (!hud.screenToggle) return;
+  hud.screenToggle.textContent = 'Screen';
+  hud.screenToggle.classList.toggle('active', useScreenCapture);
+}
+
 function updateHudLabel() {
   if (!hud.label) return;
   if (currentLabel === 'J' || currentLabel === 'Z') {
@@ -88,12 +92,6 @@ function updateHudLabel() {
   } else {
     hud.label.textContent = `Label: ${currentLabel}`;
   }
-}
-
-function updateHudMirrorState() {
-  if (!hud.mirrorToggle) return;
-  hud.mirrorToggle.textContent = mirrorLeftToRight ? 'Mirror L: ON' : 'Mirror L: OFF';
-  hud.mirrorToggle.classList.toggle('active', mirrorLeftToRight);
 }
 
 function updateHudCount() {
@@ -166,7 +164,7 @@ async function loadMLPModel() {
       biases: layer.biases.map(Number),
     }));
     modelReady = true;
-    setHudModelStatus(`Model: ready (${modelLabels.length})`);
+    setHudModelStatus('Model: ready');
   } catch (err) {
     modelReady = false;
     modelLabels = [];
@@ -234,12 +232,17 @@ let handsInstance = null;
 let mpBaseUrl = '';
 let screenProcessing = false;
 
+async function toggleSourceMode() {
+  useScreenCapture = !useScreenCapture;
+  updateHudScreenState();
+  setHudStatus(useScreenCapture ? 'Initializing Screen...' : 'Initializing Camera...');
+  await startVideoStream();
+}
+
 // Listen for toggle message from content script
 window.addEventListener('message', async (e) => {
   if (e.data?.type === 'screenshield-asl-toggle-source') {
-    useScreenCapture = !useScreenCapture;
-    setHudStatus(useScreenCapture ? 'Initializing Screen...' : 'Initializing Camera...');
-    await startVideoStream();
+    await toggleSourceMode();
   }
 });
 
@@ -329,7 +332,7 @@ async function initHands() {
     }
 
     const x63 = normalizeAndFlatten(lastLandmarks, {
-      mirrorX: mirrorLeftToRight && lastHandedness === 'Left'
+      mirrorX: MIRROR_LEFT_TO_RIGHT && lastHandedness === 'Left'
     });
 
     const raw = predictFromModel(x63);
@@ -361,10 +364,12 @@ async function startVideoStream() {
         video: true,
         audio: false
       });
+      updateHudScreenState();
       // If user stops sharing via browser UI, revert to webcam
       currentStream.getVideoTracks()[0].onended = () => {
         if (useScreenCapture) {
           useScreenCapture = false;
+          updateHudScreenState();
           setHudStatus('Screen stopped, switching to Camera...');
           startVideoStream();
         }
@@ -376,6 +381,7 @@ async function startVideoStream() {
       currentStream = await navigator.mediaDevices.getUserMedia({
         video: { width: 320, height: 240, facingMode: 'user' }
       });
+      updateHudScreenState();
       video.style.objectFit = 'cover';
     }
 
@@ -406,6 +412,7 @@ async function startVideoStream() {
     console.error('[ASL Frame] Failed to start stream:', err);
     if (useScreenCapture) {
       useScreenCapture = false;
+      updateHudScreenState();
       startVideoStream();
     }
   }
@@ -476,14 +483,6 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Toggle mirroring for left hand normalization: 2
-  if (!e.ctrlKey && !e.shiftKey && !e.altKey && e.key === '2') {
-    mirrorLeftToRight = !mirrorLeftToRight;
-    updateHudMirrorState();
-    setHudStatus(mirrorLeftToRight ? 'Mirror LEFT enabled' : 'Mirror LEFT disabled');
-    return;
-  }
-
   // change label: press A-Z
   const k = e.key.toUpperCase();
   if (k.length === 1 && RECORDABLE_LABELS.includes(k)) {
@@ -521,7 +520,7 @@ window.addEventListener("keydown", (e) => {
       return;
     }
     const x = normalizeAndFlatten(lastLandmarks, {
-      mirrorX: mirrorLeftToRight && lastHandedness === 'Left'
+      mirrorX: MIRROR_LEFT_TO_RIGHT && lastHandedness === 'Left'
     });
     samples.push({
       label: currentLabel,
