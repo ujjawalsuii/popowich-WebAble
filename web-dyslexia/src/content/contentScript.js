@@ -2322,11 +2322,14 @@ function classifyASL(lm) {
   const thumbPinkyDist = dist(4, 20);
   const indexMiddleDist = dist(8, 12);
 
-  // Crossed = index tip past middle tip AND fingers close/overlapping
-  const fingersCrossed = (lm[12].x - lm[8].x) > 0.03 && indexMiddleDist < 0.05;
+  // Crossed = index tip past middle tip AND fingers close
+  const fingersCrossed = (lm[12].x - lm[8].x) > 0.03 && indexMiddleDist < 0.06;
 
-  // Horizontal = fingertips at ~same height as wrist
-  const handHorizontal = Math.abs(lm[8].y - lm[0].y) < 0.13;
+  // Horizontal = finger is pointing more sideways than up/down
+  // Compare horizontal span vs vertical span of index finger
+  const indexHSpan = Math.abs(lm[8].x - lm[5].x);
+  const indexVSpan = Math.abs(lm[8].y - lm[5].y);
+  const handHorizontal = indexHSpan > indexVSpan;
 
   // ══════ GESTURES ══════
 
@@ -2344,7 +2347,7 @@ function classifyASL(lm) {
 
   if (indexExt && middleExt && !ringExt && !pinkyExt) {
     if (handHorizontal && Math.abs(lm[8].y - lm[12].y) < 0.06) return 'H';
-    if (thumbMiddleDist < 0.08 && lm[4].y > lm[8].y) return 'K';
+    if (thumbMiddleDist < 0.10 && lm[4].y > lm[8].y) return 'K';
     if (fingersCrossed) return 'R';
     if (indexMiddleDist < 0.06 && !fingersCrossed) return 'U';
     return 'V';
@@ -2365,12 +2368,12 @@ function classifyASL(lm) {
 
   if (thumbIndexDist < 0.06 && middleExt && ringExt && pinkyExt) return 'F';
   if (thumbIndexDist < 0.07 && thumbMiddleDist < 0.07 && thumbRingDist < 0.07 && thumbPinkyDist < 0.09) return 'O';
-  if (indexPartial && middlePartial && ringPartial && !allCurled) return 'C';
+  if (indexPartial && middlePartial && ringPartial && !allCurled && !thumbAcross) return 'C';
 
   // ══════ FIST-BASED — grouped block ══════
   // T before X: both involve "index not fully extended" but T has allCurled
 
-  if (allCurled && lm[4].y > lm[6].y && lm[4].y < lm[10].y && thumbIndexDist < 0.07) return 'T';
+  if (allCurled && lm[4].y > lm[6].y && thumbIndexDist < 0.07 && thumbMiddleDist > 0.03) return 'T';
   if (indexPartial && middleCurl && ringCurl && pinkyCurl) return 'X';
   if (allCurled && thumbIndexDist < 0.07 && thumbAcross) return 'E';
   if (allCurled && thumbMiddleDist < 0.05 && thumbRingDist > 0.04 && lm[4].y > lm[10].y && thumbIndexDist > 0.04) return 'N';
