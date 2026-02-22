@@ -2032,7 +2032,7 @@ function injectASLPanel() {
   const iframe = document.createElement('iframe');
   iframe.className = 'asl-iframe';
   iframe.src = browser.runtime.getURL('content/asl-frame.html');
-  iframe.setAttribute('allow', 'camera');
+  iframe.setAttribute('allow', 'camera; display-capture');
   iframe.setAttribute('frameborder', '0');
   iframe.setAttribute('tabindex', '0');
   aslIframeEl = iframe;
@@ -2084,7 +2084,19 @@ function injectASLPanel() {
     if (aslWordEl) aslWordEl.textContent = '';
   });
 
-  wordBox.append(wordVal, sendBtn, clearBtn);
+  const screenBtn = document.createElement('button');
+  screenBtn.className = 'asl-screen-btn';
+  screenBtn.textContent = 'Screen';
+  screenBtn.title = 'Watch Meet/Screen instead of Webcam';
+  screenBtn.addEventListener('click', () => {
+    // Tell the iframe to switch modes
+    const win = aslIframeEl?.contentWindow;
+    if (win) {
+      win.postMessage({ type: 'screenshield-asl-toggle-source' }, '*');
+    }
+  });
+
+  wordBox.append(wordVal, sendBtn, clearBtn, screenBtn);
 
   // Toolbar: Caps toggle + Backspace
   const toolbar = document.createElement('div');
@@ -2208,8 +2220,20 @@ function injectASLPanel() {
       border-color: #22c55e;
       color: #fff;
     }
+    .asl-screen-btn {
+      background: #3b82f6;
+      border: 1px solid #2563eb;
+      color: #fff;
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+    }
     .asl-send-btn:hover { background: #16a34a; }
     .asl-clear-btn:hover { background: #3d3d5c; }
+    .asl-screen-btn:hover { background: #2563eb; }
     .asl-toolbar {
       display: flex;
       gap: 4px;
@@ -2801,6 +2825,109 @@ function disableSubtitles() {
   }
 }
 
-// ΓöÇΓöÇ Boot ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ── Quick Access FAB ──────────────────────────────────────────────────────────────
+
+const SS_FAB_HOST_ID = 'screenshield-fab-host';
+let fabShadow = null;
+let fabMenu = null;
+
+function injectQuickAccessFAB() {
+  if (document.getElementById(SS_FAB_HOST_ID)) return;
+
+  const host = document.createElement('div');
+  host.id = SS_FAB_HOST_ID;
+  host.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2147483647;pointer-events:none;';
+
+  fabShadow = host.attachShadow({ mode: 'open' });
+
+  const fabBtn = document.createElement('button');
+  fabBtn.className = 'ss-pill';
+  fabBtn.setAttribute('aria-label', 'ScreenShield Quick Access');
+  fabBtn.innerHTML = '<svg viewBox="0 0 32 32" width="14" height="14" fill="none"><path d="M16 2L4 7v9c0 6.6 5.1 12.7 12 14 6.9-1.3 12-7.4 12-14V7L16 2z" fill="currentColor" opacity="0.6"/><path d="M11 16l3.5 3.5L21 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  fabMenu = document.createElement('div');
+  fabMenu.className = 'ss-strip hidden';
+  fabMenu.innerHTML =
+    '<label class="ss-chip" title="ASL Recognition"><input type="checkbox" id="fab-asl"' + (settings.aslMode ? ' checked' : '') + '/><span>ASL</span></label>' +
+    '<label class="ss-chip" title="Dyslexia Friendly"><input type="checkbox" id="fab-dyslexia"' + (settings.dyslexiaMode ? ' checked' : '') + '/><span>Dyslexia</span></label>' +
+    '<label class="ss-chip" title="Speech to Text"><input type="checkbox" id="fab-tts"' + (settings.ttsMode ? ' checked' : '') + '/><span>TTS</span></label>' +
+    '<label class="ss-chip" title="Epilepsy Safe"><input type="checkbox" id="fab-seizure"' + (settings.seizureSafeMode ? ' checked' : '') + '/><span>Epilepsy</span></label>' +
+    '<label class="ss-chip" title="Live Captions"><input type="checkbox" id="fab-subtitles"' + (settings.subtitleMode ? ' checked' : '') + '/><span>Captions</span></label>';
+
+  fabBtn.addEventListener('click', () => {
+    const isHidden = fabMenu.classList.toggle('hidden');
+    fabBtn.classList.toggle('open', !isHidden);
+  });
+
+  const toggleMap = {
+    'fab-asl': 'aslMode',
+    'fab-dyslexia': 'dyslexiaMode',
+    'fab-tts': 'ttsMode',
+    'fab-seizure': 'seizureSafeMode',
+    'fab-subtitles': 'subtitleMode'
+  };
+
+  Object.entries(toggleMap).forEach(([id, key]) => {
+    const el = fabMenu.querySelector('#' + id);
+    if (!el) return;
+    el.addEventListener('change', (e) => {
+      browser.storage.sync.set({ [key]: e.target.checked });
+    });
+  });
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'ss-fab-wrap';
+  wrapper.append(fabMenu, fabBtn);
+  fabShadow.appendChild(wrapper);
+
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(
+    ':host{all:initial}' +
+    '.ss-fab-wrap{display:flex;align-items:center;gap:6px;pointer-events:auto;justify-content:flex-end}' +
+    '.ss-pill{all:unset;width:28px;height:28px;border-radius:14px;background:rgba(74,144,217,0.85);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;box-shadow:0 2px 8px rgba(0,0,0,0.25);transition:background 0.2s,transform 0.15s,border-radius 0.2s;flex-shrink:0}' +
+    '.ss-pill:hover{background:rgba(58,123,194,0.95);transform:scale(1.08)}' +
+    '.ss-pill.open{background:rgba(74,144,217,1);border-radius:8px}' +
+    '.ss-strip{display:flex;align-items:center;gap:4px;background:rgba(20,20,35,0.92);border:1px solid rgba(61,61,92,0.6);border-radius:16px;padding:3px 8px;backdrop-filter:blur(10px);transition:opacity 0.15s,transform 0.15s;transform-origin:right center}' +
+    '.ss-strip.hidden{opacity:0;transform:scaleX(0.3);pointer-events:none;width:0;padding:0;border:none;overflow:hidden}' +
+    '.ss-chip{all:unset;display:flex;align-items:center;gap:3px;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;color:#c8c8e0;padding:2px 4px;border-radius:6px;transition:background 0.15s;white-space:nowrap}' +
+    '.ss-chip:hover{background:rgba(74,144,217,0.15)}' +
+    '.ss-chip input{width:13px;height:13px;cursor:pointer;accent-color:#4a90d9;margin:0}'
+  );
+  fabShadow.adoptedStyleSheets = [sheet];
+
+  document.documentElement.appendChild(host);
+}
+
+function updateFABUI(changes) {
+  if (!fabShadow) return;
+  const toggleMap = {
+    aslMode: 'fab-asl',
+    dyslexiaMode: 'fab-dyslexia',
+    ttsMode: 'fab-tts',
+    seizureSafeMode: 'fab-seizure',
+    subtitleMode: 'fab-subtitles'
+  };
+  for (const [key, { newValue }] of Object.entries(changes)) {
+    if (toggleMap[key]) {
+      const el = fabShadow.querySelector('#' + toggleMap[key]);
+      if (el) el.checked = !!newValue;
+    }
+  }
+}
+// ── Boot ────────────────────────────────────────────────────────────
+
+const originalStorageListener = browser.storage.onChanged.hasListeners() ? browser.storage.onChanged : null;
+// The listener at the top of the file handles side effects.
+// We just add a small hook here to visually update the FAB checkboxes
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync') updateFABUI(changes);
+});
+
+// We need to inject the FAB during init
+const originalInit = init;
+init = async function () {
+  await originalInit();
+  injectQuickAccessFAB();
+};
 
 init().catch(console.warn);
