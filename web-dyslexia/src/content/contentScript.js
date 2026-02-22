@@ -2757,10 +2757,12 @@ function enableSubtitles() {
 
     // Loop through ALL results in the current session
     for (let i = 0; i < event.results.length; ++i) {
-      if (event.results[i].isFinal) {
-        finalTranscript += event.results[i][0].transcript + ' ';
-      } else {
-        interimTranscript += event.results[i][0].transcript;
+      if (event.results[i].length > 0) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
       }
     }
 
