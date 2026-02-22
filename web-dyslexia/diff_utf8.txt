@@ -1,0 +1,1320 @@
+﻿diff --git a/web-dyslexia/manifests/manifest.base.json b/web-dyslexia/manifests/manifest.base.json
+index 55c046a..5deb5f7 100644
+--- a/web-dyslexia/manifests/manifest.base.json
++++ b/web-dyslexia/manifests/manifest.base.json
+@@ -45,6 +45,7 @@
+         "content/asl-bridge.js",
+         "content/asl-frame.html",
+         "content/asl-frame.js",
++        "models/*",
+         "lib/mediapipe/*"
+       ],
+       "matches": [
+diff --git a/web-dyslexia/manifests/manifest.chrome.json b/web-dyslexia/manifests/manifest.chrome.json
+index cfa7e4a..b93ad3a 100644
+--- a/web-dyslexia/manifests/manifest.chrome.json
++++ b/web-dyslexia/manifests/manifest.chrome.json
+@@ -45,6 +45,7 @@
+         "content/asl-bridge.js",
+         "content/asl-frame.html",
+         "content/asl-frame.js",
++        "models/*",
+         "lib/mediapipe/*"
+       ],
+       "matches": [
+diff --git a/web-dyslexia/scripts/__pycache__/train_asl.cpython-314.pyc b/web-dyslexia/scripts/__pycache__/train_asl.cpython-314.pyc
+new file mode 100644
+index 0000000..9e51cc4
+Binary files /dev/null and b/web-dyslexia/scripts/__pycache__/train_asl.cpython-314.pyc differ
+diff --git a/web-dyslexia/scripts/train_asl.py b/web-dyslexia/scripts/train_asl.py
+new file mode 100644
+index 0000000..b245f5b
+--- /dev/null
++++ b/web-dyslexia/scripts/train_asl.py
+@@ -0,0 +1,247 @@
++#!/usr/bin/env python3
++"""
++Train an ASL letter MLP model from captured MediaPipe landmark samples.
++
++Input dataset format (asl_dataset.json):
++[
++  {"label": "A", "x": [63 floats], "t": 1732450000000},
++  ...
++]
++
++Outputs:
++1) Terminal metrics (accuracy + classification report + confusion matrix)
++2) Browser inference weights JSON at src/models/asl_mlp_weights.json
++"""
++
++from __future__ import annotations
++
++import argparse
++import json
++import random
++from pathlib import Path
++from typing import Dict, List, Tuple
++
++import numpy as np
++from sklearn.metrics import classification_report, confusion_matrix
++from sklearn.model_selection import train_test_split
++import tensorflow as tf
++
++
++DEFAULT_EXCLUDED = {"J", "Z"}
++DEFAULT_MODEL_OUT = Path("src/models/asl_mlp_weights.json")
++
++
++def parse_args() -> argparse.Namespace:
++    parser = argparse.ArgumentParser(description="Train ASL MLP classifier for browser inference")
++    parser.add_argument(
++        "--dataset",
++        default="asl_dataset.json",
++        help="Path to captured dataset JSON (default: asl_dataset.json)",
++    )
++    parser.add_argument(
++        "--output",
++        default=str(DEFAULT_MODEL_OUT),
++        help=f"Output model JSON path (default: {DEFAULT_MODEL_OUT.as_posix()})",
++    )
++    parser.add_argument(
++        "--include-jz",
++        action="store_true",
++        help="Include J and Z classes (excluded by default)",
++    )
++    parser.add_argument(
++        "--epochs",
++        type=int,
++        default=60,
++        help="Training epochs (default: 60)",
++    )
++    parser.add_argument(
++        "--batch-size",
++        type=int,
++        default=32,
++        help="Batch size (default: 32)",
++    )
++    parser.add_argument(
++        "--seed",
++        type=int,
++        default=42,
++        help="Random seed (default: 42)",
++    )
++    return parser.parse_args()
++
++
++def load_samples(path: Path, include_jz: bool) -> List[dict]:
++    if not path.exists():
++        raise FileNotFoundError(f"Dataset file not found: {path}")
++
++    with path.open("r", encoding="utf-8") as f:
++        raw = json.load(f)
++
++    if not isinstance(raw, list):
++        raise ValueError("Dataset must be a JSON array of samples")
++
++    samples: List[dict] = []
++    for idx, row in enumerate(raw):
++        if not isinstance(row, dict):
++            continue
++
++        label = str(row.get("label", "")).upper().strip()
++        x = row.get("x")
++
++        if len(label) != 1 or not label.isalpha():
++            continue
++        if (not include_jz) and (label in DEFAULT_EXCLUDED):
++            continue
++        if not isinstance(x, list) or len(x) != 63:
++            continue
++
++        try:
++            vec = [float(v) for v in x]
++        except (TypeError, ValueError):
++            continue
++
++        samples.append({"label": label, "x": vec, "idx": idx})
++
++    if not samples:
++        raise ValueError("No valid samples found after filtering")
++
++    return samples
++
++
++def build_xy(samples: List[dict]) -> Tuple[np.ndarray, np.ndarray, List[str], Dict[str, int]]:
++    labels = sorted({s["label"] for s in samples})
++    label_to_idx = {label: i for i, label in enumerate(labels)}
++
++    X = np.array([s["x"] for s in samples], dtype=np.float32)
++    y = np.array([label_to_idx[s["label"]] for s in samples], dtype=np.int32)
++
++    return X, y, labels, label_to_idx
++
++
++def make_model(num_classes: int) -> tf.keras.Model:
++    model = tf.keras.Sequential(
++        [
++            tf.keras.layers.Input(shape=(63,), name="input_63"),
++            tf.keras.layers.Dense(128, activation="relu", name="dense_128"),
++            tf.keras.layers.Dense(64, activation="relu", name="dense_64"),
++            tf.keras.layers.Dense(num_classes, activation="softmax", name="dense_logits"),
++        ]
++    )
++
++    model.compile(
++        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
++        loss="sparse_categorical_crossentropy",
++        metrics=["accuracy"],
++    )
++    return model
++
++
++def export_browser_model(model: tf.keras.Model, labels: List[str], output_path: Path) -> None:
++    dense_layers = [layer for layer in model.layers if isinstance(layer, tf.keras.layers.Dense)]
++    export_layers = []
++
++    for layer in dense_layers:
++        weights, biases = layer.get_weights()
++        activation = getattr(layer.activation, "__name__", "linear")
++        export_layers.append(
++            {
++                "name": layer.name,
++                "input_size": int(weights.shape[0]),
++                "output_size": int(weights.shape[1]),
++                "activation": "relu" if activation == "relu" else "linear",
++                "weights": weights.tolist(),
++                "biases": biases.tolist(),
++            }
++        )
++
++    payload = {
++        "model_type": "mlp",
++        "input_size": 63,
++        "labels": labels,
++        "layers": export_layers,
++    }
++
++    output_path.parent.mkdir(parents=True, exist_ok=True)
++    with output_path.open("w", encoding="utf-8") as f:
++        json.dump(payload, f)
++
++
++def main() -> None:
++    args = parse_args()
++    random.seed(args.seed)
++    np.random.seed(args.seed)
++    tf.random.set_seed(args.seed)
++
++    dataset_path = Path(args.dataset)
++    output_path = Path(args.output)
++
++    samples = load_samples(dataset_path, include_jz=args.include_jz)
++    X, y, labels, _ = build_xy(samples)
++
++    if len(labels) < 2:
++        raise ValueError("Need at least 2 distinct labels to train")
++
++    counts = {label: int((y == i).sum()) for i, label in enumerate(labels)}
++    for label, count in counts.items():
++        if count < 2:
++            raise ValueError(
++                f"Label '{label}' has only {count} sample(s). Add more samples for stratified split."
++            )
++
++    X_train, X_val, y_train, y_val = train_test_split(
++        X,
++        y,
++        test_size=0.2,
++        random_state=args.seed,
++        stratify=y,
++    )
++
++    model = make_model(num_classes=len(labels))
++
++    callbacks: List[tf.keras.callbacks.Callback] = [
++        tf.keras.callbacks.EarlyStopping(
++            monitor="val_accuracy",
++            patience=8,
++            restore_best_weights=True,
++        )
++    ]
++
++    model.fit(
++        X_train,
++        y_train,
++        validation_data=(X_val, y_val),
++        epochs=args.epochs,
++        batch_size=args.batch_size,
++        verbose=1,
++        callbacks=callbacks,
++    )
++
++    eval_result = model.evaluate(X_val, y_val, verbose=0)
++    if isinstance(eval_result, (list, tuple, np.ndarray)):
++        val_loss = float(eval_result[0]) if len(eval_result) > 0 else float("nan")
++        val_acc = float(eval_result[1]) if len(eval_result) > 1 else float("nan")
++    else:
++        val_loss = float(eval_result)
++        val_acc = float("nan")
++
++    if np.isnan(val_acc):
++        print(f"\nValidation loss: {val_loss:.4f}\n")
++    else:
++        print(f"\nValidation accuracy: {val_acc:.4f}")
++        print(f"Validation loss: {val_loss:.4f}\n")
++
++    y_prob = model.predict(X_val, verbose=0)
++    y_pred = np.argmax(y_prob, axis=1)
++
++    print("Classification report:")
++    print(classification_report(y_val, y_pred, target_names=labels, digits=4, zero_division=0))
++
++    cm = confusion_matrix(y_val, y_pred, labels=np.arange(len(labels)))
++    print("Confusion matrix (rows=true, cols=pred):")
++    print(cm)
++
++    export_browser_model(model, labels, output_path)
++    print(f"\nExported browser model JSON to: {output_path.as_posix()}")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/web-dyslexia/src/content/asl-frame.html b/web-dyslexia/src/content/asl-frame.html
+index 3a8fb11..b7a740d 100644
+--- a/web-dyslexia/src/content/asl-frame.html
++++ b/web-dyslexia/src/content/asl-frame.html
+@@ -13,6 +13,8 @@
+         body {
+             background: #000;
+             overflow: hidden;
++            position: relative;
++            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+         }
+ 
+         video {
+@@ -21,11 +23,89 @@
+             object-fit: cover;
+             display: block;
+         }
++
++        #asl-hud {
++            position: absolute;
++            top: 6px;
++            left: 6px;
++            right: 6px;
++            z-index: 2;
++            display: flex;
++            align-items: center;
++            gap: 6px;
++            flex-wrap: wrap;
++            padding: 6px;
++            border-radius: 8px;
++            background: rgba(10, 10, 18, 0.78);
++            border: 1px solid rgba(34, 197, 94, 0.45);
++            color: #e8e8f0;
++            font-size: 10px;
++            backdrop-filter: blur(2px);
++        }
++
++        #asl-hud button {
++            border: 1px solid #2d2d4a;
++            background: #1f2937;
++            color: #e8e8f0;
++            border-radius: 6px;
++            padding: 2px 6px;
++            font-size: 10px;
++            font-weight: 600;
++            cursor: pointer;
++        }
++
++        #asl-hud button.active {
++            background: #16a34a;
++            border-color: #22c55e;
++            color: #fff;
++        }
++
++        #asl-help {
++            position: absolute;
++            bottom: 4px;
++            left: 6px;
++            right: 6px;
++            z-index: 2;
++            background: rgba(10, 10, 18, 0.68);
++            color: #a1a1c5;
++            border-radius: 6px;
++            padding: 3px 6px;
++            font-size: 9px;
++            text-align: center;
++            pointer-events: none;
++        }
++
++        #hud-status {
++            color: #93c5fd;
++            min-width: 90px;
++        }
++
++        #hud-model {
++            color: #a7f3d0;
++        }
++
++        #hud-label {
++            color: #fde68a;
++            font-weight: 700;
++        }
++
++        #hud-count {
++            color: #c4b5fd;
++        }
+     </style>
+ </head>
+ 
+-<body>
++<body tabindex="0">
+     <video id="cam" autoplay playsinline muted></video>
++    <div id="asl-hud" role="status" aria-live="polite">
++        <button id="record-toggle" type="button" class="active">Record: ON</button>
++        <button id="mirror-toggle" type="button" class="active">Mirror L: ON</button>
++        <span id="hud-label">Label: A</span>
++        <span id="hud-count">Samples: 0</span>
++        <span id="hud-status">No hand</span>
++        <span id="hud-model">Model: loadingΓÇª</span>
++    </div>
++    <div id="asl-help">A-Z: label ΓÇó Space: capture ΓÇó Ctrl+S: download ΓÇó Ctrl+C: clear ΓÇó R: record toggle ΓÇó M: mirror toggle</div>
+     <script src="../lib/mediapipe/hands.js"></script>
+     <script src="../lib/mediapipe/camera_utils.js"></script>
+     <script src="asl-frame.js"></script>
+diff --git a/web-dyslexia/src/content/asl-frame.js b/web-dyslexia/src/content/asl-frame.js
+index ddd47a8..e1ab9c9 100644
+--- a/web-dyslexia/src/content/asl-frame.js
++++ b/web-dyslexia/src/content/asl-frame.js
+@@ -1,13 +1,240 @@
+ /**
+  * ASL Frame ΓÇö runs inside the extension iframe.
+  * Gets webcam access, runs MediaPipe Hands detection,
+- * and posts hand landmarks to the parent page (content script).
++ * performs local MLP inference,
++ * and posts predictions to the parent page (content script).
+  *
+  * All MediaPipe files are bundled locally in lib/mediapipe/
+  * to avoid CSP restrictions on external scripts.
+  */
++"use strict";
++
++const RECORDABLE_LABELS = [
++  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
++  'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
++  'U', 'V', 'W', 'X', 'Y', 'Z'
++];
++
++const MODEL_URL = getRuntimeUrl('models/asl_mlp_weights.json');
++
++let currentLabel = "A";
++let recordMode = true;
++let samples = [];
++let lastLandmarks = null;
++let lastHandedness = 'Unknown';
++let mirrorLeftToRight = true;
++
++let modelReady = false;
++let modelLabels = [];
++let modelLayers = [];
++
++// HUD refs
++const hud = {
++  recordToggle: null,
++  mirrorToggle: null,
++  label: null,
++  count: null,
++  status: null,
++  model: null,
++};
++
++function setupHud() {
++  hud.recordToggle = document.getElementById('record-toggle');
++  hud.mirrorToggle = document.getElementById('mirror-toggle');
++  hud.label = document.getElementById('hud-label');
++  hud.count = document.getElementById('hud-count');
++  hud.status = document.getElementById('hud-status');
++  hud.model = document.getElementById('hud-model');
++
++  hud.recordToggle?.addEventListener('click', () => {
++    recordMode = !recordMode;
++    updateHudRecordState();
++    focusFrame();
++  });
++
++  hud.mirrorToggle?.addEventListener('click', () => {
++    mirrorLeftToRight = !mirrorLeftToRight;
++    updateHudMirrorState();
++    setHudStatus(mirrorLeftToRight ? 'Mirror LEFT enabled' : 'Mirror LEFT disabled');
++    focusFrame();
++  });
++
++  updateHudLabel();
++  updateHudCount();
++  updateHudRecordState();
++  updateHudMirrorState();
++  setHudStatus('No hand');
++}
++
++function focusFrame() {
++  try {
++    window.focus();
++    document.body?.focus({ preventScroll: true });
++  } catch {
++    // best-effort
++  }
++}
++
++function updateHudRecordState() {
++  if (!hud.recordToggle) return;
++  hud.recordToggle.textContent = recordMode ? 'Record: ON' : 'Record: OFF';
++  hud.recordToggle.classList.toggle('active', recordMode);
++}
++
++function updateHudLabel() {
++  if (!hud.label) return;
++  if (currentLabel === 'J' || currentLabel === 'Z') {
++    hud.label.textContent = `Label: ${currentLabel} (motion)`;
++  } else {
++    hud.label.textContent = `Label: ${currentLabel}`;
++  }
++}
++
++function updateHudMirrorState() {
++  if (!hud.mirrorToggle) return;
++  hud.mirrorToggle.textContent = mirrorLeftToRight ? 'Mirror L: ON' : 'Mirror L: OFF';
++  hud.mirrorToggle.classList.toggle('active', mirrorLeftToRight);
++}
++
++function updateHudCount() {
++  if (hud.count) hud.count.textContent = `Samples: ${samples.length}`;
++}
++
++function setHudStatus(text) {
++  if (hud.status) hud.status.textContent = text;
++}
++
++function setHudModelStatus(text) {
++  if (hud.model) hud.model.textContent = text;
++}
++
++function getRuntimeUrl(path) {
++  try {
++    if (typeof browser !== 'undefined' && browser.runtime?.getURL) {
++      return browser.runtime.getURL(path);
++    }
++    if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
++      return chrome.runtime.getURL(path);
++    }
++  } catch {
++    // best-effort fallback below
++  }
++  return new URL(`../${path.replace(/^\/+/, '')}`, location.href).href;
++}
++
++function validateModelPayload(payload) {
++  if (!payload || typeof payload !== 'object') return false;
++  if (!Array.isArray(payload.labels) || !Array.isArray(payload.layers)) return false;
++  if (payload.labels.length === 0) return false;
++  if (!Number.isInteger(payload.input_size) || payload.input_size !== 63) return false;
++  if (payload.layers.length === 0) return false;
++
++  let expectedIn = 63;
++  for (const layer of payload.layers) {
++    if (!layer || typeof layer !== 'object') return false;
++    if (!Array.isArray(layer.weights) || !Array.isArray(layer.biases)) return false;
++    if (!Number.isInteger(layer.input_size) || !Number.isInteger(layer.output_size)) return false;
++    if (layer.input_size !== expectedIn) return false;
++    if (layer.weights.length !== layer.input_size) return false;
++    if (layer.biases.length !== layer.output_size) return false;
++    for (const row of layer.weights) {
++      if (!Array.isArray(row) || row.length !== layer.output_size) return false;
++      if (!row.every(Number.isFinite)) return false;
++    }
++    if (!layer.biases.every(Number.isFinite)) return false;
++    expectedIn = layer.output_size;
++  }
++
++  return expectedIn === payload.labels.length;
++}
++
++async function loadMLPModel() {
++  try {
++    const res = await fetch(MODEL_URL, { cache: 'no-store' });
++    if (!res.ok) throw new Error(`HTTP ${res.status}`);
++    const payload = await res.json();
++    if (!validateModelPayload(payload)) {
++      throw new Error('Invalid model schema');
++    }
++
++    modelLabels = payload.labels.map(v => String(v).toUpperCase());
++    modelLayers = payload.layers.map((layer) => ({
++      inputSize: Number(layer.input_size),
++      outputSize: Number(layer.output_size),
++      activation: String(layer.activation || 'linear').toLowerCase(),
++      weights: layer.weights.map(row => row.map(Number)),
++      biases: layer.biases.map(Number),
++    }));
++    modelReady = true;
++    setHudModelStatus(`Model: ready (${modelLabels.length})`);
++  } catch (err) {
++    modelReady = false;
++    modelLabels = [];
++    modelLayers = [];
++    setHudModelStatus('Model: missing (landmark fallback)');
++    console.warn('[ASL Frame] Could not load local model:', err);
++  }
++}
++
++function softmax(logits) {
++  const max = Math.max(...logits);
++  const exps = logits.map(v => Math.exp(v - max));
++  const sum = exps.reduce((acc, v) => acc + v, 0) || 1;
++  return exps.map(v => v / sum);
++}
++
++function denseForward(input, weights, biases) {
++  const out = new Array(biases.length);
++  for (let j = 0; j < biases.length; j++) {
++    let sum = biases[j];
++    for (let i = 0; i < input.length; i++) {
++      sum += input[i] * weights[i][j];
++    }
++    out[j] = sum;
++  }
++  return out;
++}
++
++function applyActivation(values, activation) {
++  if (activation === 'relu') {
++    return values.map(v => (v > 0 ? v : 0));
++  }
++  return values;
++}
++
++function predictFromModel(x63) {
++  if (!modelReady || modelLabels.length === 0) {
++    return { letter: null, confidence: 0 };
++  }
++
++  let activations = x63;
++  for (const layer of modelLayers) {
++    const z = denseForward(activations, layer.weights, layer.biases);
++    activations = applyActivation(z, layer.activation);
++  }
++
++  const probs = softmax(activations);
++
++  let bestIdx = 0;
++  for (let i = 1; i < probs.length; i++) {
++    if (probs[i] > probs[bestIdx]) bestIdx = i;
++  }
++
++  return {
++    letter: modelLabels[bestIdx] || null,
++    confidence: probs[bestIdx] || 0,
++  };
++}
++
+ (async function () {
+     const video = document.getElementById('cam');
++    setupHud();
++    await loadMLPModel();
++
++    // Improve hotkey reliability inside iframe
++    focusFrame();
++    setTimeout(focusFrame, 150);
++    document.addEventListener('pointerdown', focusFrame);
+ 
+     // Resolve the extension base URL for locateFile
+     // asl-frame.html is at content/asl-frame.html, inside chrome-extension:// context
+@@ -16,28 +243,24 @@
+     const contentDir = frameUrl.substring(0, frameUrl.lastIndexOf('/'));
+     const mpBase = contentDir.replace('/content', '/lib/mediapipe/');
+ 
+-    console.log('[ASL Frame] frameUrl:', frameUrl);
+-    console.log('[ASL Frame] mpBase:', mpBase);
+-
+     try {
+         const stream = await navigator.mediaDevices.getUserMedia({
+             video: { width: 320, height: 240, facingMode: 'user' }
+         });
+         video.srcObject = stream;
+         await video.play();
+-        console.log('[ASL Frame] Camera started');
++        setHudStatus('Camera ready');
+ 
+         /* global Hands, Camera */
+         if (typeof Hands === 'undefined') {
+             console.error('[ASL Frame] Hands class not found! MediaPipe scripts may not have loaded.');
++            setHudStatus('MediaPipe missing');
+             return;
+         }
+ 
+         const hands = new Hands({
+             locateFile: function (f) {
+-                const url = mpBase + f;
+-                console.log('[ASL Frame] locateFile:', f, '->', url);
+-                return url;
++                return mpBase + f;
+             }
+         });
+         hands.setOptions({
+@@ -47,20 +270,55 @@
+             minTrackingConfidence: 0.4
+         });
+ 
+-        let frameCount = 0;
+         hands.onResults(function (results) {
+-            var lms = results.multiHandLandmarks || [];
+-            frameCount++;
+-            if (frameCount % 30 === 1) {
+-                console.log('[ASL Frame] onResults frame #' + frameCount + ', hands detected:', lms.length);
+-                if (lms.length > 0) {
+-                    console.log('[ASL Frame] First landmark (wrist):', JSON.stringify(lms[0][0]));
+-                }
++            const lms = results.multiHandLandmarks || [];
++            if (lms.length > 0) {
++                lastLandmarks = lms[0];
++                lastHandedness = results.multiHandedness?.[0]?.label || 'Unknown';
++            } else {
++                lastLandmarks = null;
++                lastHandedness = 'Unknown';
+             }
+-            // Post landmarks to the parent page (content script listens)
++
+             window.parent.postMessage({
+                 type: 'screenshield-asl-landmarks',
+-                landmarks: lms
++                landmarks: lms,
++                handedness: lastHandedness,
++                ts: Date.now(),
++            }, '*');
++
++            if (!lastLandmarks) {
++                setHudStatus('No hand');
++                window.parent.postMessage({
++                    type: 'screenshield-asl-prediction',
++                    letter: null,
++                    confidence: 0,
++                    modelReady,
++                    handedness: lastHandedness,
++                    ts: Date.now(),
++                }, '*');
++                return;
++            }
++
++            const x63 = normalizeAndFlatten(lastLandmarks, {
++              mirrorX: mirrorLeftToRight && lastHandedness === 'Left'
++            });
++
++            const raw = predictFromModel(x63);
++
++            if (raw.letter) {
++              setHudStatus(`Pred ${raw.letter} ${Math.round(raw.confidence * 100)}%`);
++            } else {
++              setHudStatus(modelReady ? 'Hand detected' : 'Hand detected (fallback)');
++            }
++
++            window.parent.postMessage({
++                type: 'screenshield-asl-prediction',
++                letter: raw.letter,
++                confidence: Number(raw.confidence.toFixed(4)),
++                modelReady,
++                handedness: lastHandedness,
++                ts: Date.now(),
+             }, '*');
+         });
+ 
+@@ -72,8 +330,113 @@
+             height: 240
+         });
+         cam.start();
+-        console.log('[ASL Frame] MediaPipe Hands + Camera started successfully');
++        setHudStatus('Tracking started');
+     } catch (err) {
++        setHudStatus('Camera error');
+         console.error('[ASL Frame] Failed:', err);
+     }
+ })();
++
++function normalizeAndFlatten(lm, options = {}) {
++  const mirrorX = !!options.mirrorX;
++  // lm: array of 21 landmarks {x,y,z}
++  // 1) translate so wrist (0) is origin
++  const wx = lm[0].x, wy = lm[0].y, wz = lm[0].z;
++
++  // 2) scale by palm size: distance wrist(0) -> middle MCP(9)
++  const dx = lm[9].x - wx;
++  const dy = lm[9].y - wy;
++  const dz = lm[9].z - wz;
++  const scale = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1.0;
++
++  // 3) flatten into 63 floats
++  const out = [];
++  for (let i = 0; i < 21; i++) {
++    let x = (lm[i].x - wx) / scale;
++    if (mirrorX) x = -x;
++    out.push(x);
++    out.push((lm[i].y - wy) / scale);
++    out.push((lm[i].z - wz) / scale);
++  }
++  return out;
++}
++
++window.addEventListener("keydown", (e) => {
++  // Download dataset: Ctrl+S
++  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') {
++    e.preventDefault();
++    downloadDataset();
++    return;
++  }
++
++  // Clear dataset: Ctrl+C
++  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c') {
++    e.preventDefault();
++    samples = [];
++    updateHudCount();
++    setHudStatus('Samples cleared');
++    return;
++  }
++
++  // Toggle record mode: R
++  if (!e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r') {
++    recordMode = !recordMode;
++    updateHudRecordState();
++    setHudStatus(recordMode ? 'Record ON' : 'Record OFF');
++    return;
++  }
++
++  // Toggle mirroring for left hand normalization: M
++  if (!e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'm') {
++    mirrorLeftToRight = !mirrorLeftToRight;
++    updateHudMirrorState();
++    setHudStatus(mirrorLeftToRight ? 'Mirror LEFT enabled' : 'Mirror LEFT disabled');
++    return;
++  }
++
++  // change label: press A-Z
++  const k = e.key.toUpperCase();
++  if (k.length === 1 && RECORDABLE_LABELS.includes(k)) {
++    currentLabel = k;
++    updateHudLabel();
++    setHudStatus(`Label set: ${currentLabel}`);
++    return;
++  }
++
++  // capture sample: Space
++  if (e.code === "Space") {
++    e.preventDefault();
++    if (!recordMode) {
++      setHudStatus('Record mode OFF');
++      return;
++    }
++    if (!lastLandmarks) {
++      setHudStatus('No hand to capture');
++      return;
++    }
++    const x = normalizeAndFlatten(lastLandmarks, {
++      mirrorX: mirrorLeftToRight && lastHandedness === 'Left'
++    });
++    samples.push({
++      label: currentLabel,
++      x,
++      t: Date.now(),
++    });
++    updateHudCount();
++    setHudStatus(`Captured ${currentLabel} (${samples.length})`);
++    return;
++  }
++});
++
++function downloadDataset() {
++  const blob = new Blob([JSON.stringify(samples, null, 2)], { type: "application/json" });
++  const url = URL.createObjectURL(blob);
++  const a = document.createElement("a");
++  a.href = url;
++  a.download = "asl_dataset.json";
++  document.body.appendChild(a);
++  a.click();
++  a.remove();
++  URL.revokeObjectURL(url);
++  setHudStatus(`Downloaded ${samples.length} samples`);
++}
+diff --git a/web-dyslexia/src/content/contentScript.js b/web-dyslexia/src/content/contentScript.js
+index 4827f47..6aea7f5 100644
+--- a/web-dyslexia/src/content/contentScript.js
++++ b/web-dyslexia/src/content/contentScript.js
+@@ -1964,10 +1964,16 @@ function parseGenericMessage(node) {
+ // ΓöÇΓöÇ 10. ASL Recognition ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+ const SS_ASL_HOST_ID = 'screenshield-asl-host';
++const ASL_PREDICTION_CONFIDENCE_THRESHOLD = 0.6;
++const ASL_PREDICTION_WINDOW_SIZE = 10;
++const ASL_IFRAME_ORIGIN = new URL(browser.runtime.getURL('content/asl-frame.html')).origin;
+ let aslStream = null;
+ let aslHands = null;
+ let aslCamera = null;
+ let aslShadow = null;
++let aslIframeEl = null;
++let aslFrameWindow = null;
++let aslMessageHandler = null;
+ let aslLetterEl = null;
+ let aslWordEl = null;
+ let aslCapsEl = null;
+@@ -1975,24 +1981,34 @@ let aslCurrentLetter = '';
+ let aslLetterStart = 0;
+ let aslWordBuffer = '';
+ let aslCapsMode = false; // false = lowercase, true = UPPERCASE
++let aslPredictionHistory = [];
++let aslModelReady = false;
+ const ASL_HOLD_MS = 1200; // hold a sign this long to confirm
+ 
+ function enableASL() {
+   if (document.getElementById(SS_ASL_HOST_ID)) return;
+-  injectASLPanel();
+-  startASLCamera();
++  const iframe = injectASLPanel();
++  startASLCamera(iframe);
+ }
+ 
+ function disableASL() {
+   if (aslCamera) { aslCamera.stop(); aslCamera = null; }
+   if (aslStream) { aslStream.getTracks().forEach(t => t.stop()); aslStream = null; }
++  if (aslMessageHandler) {
++    window.removeEventListener('message', aslMessageHandler);
++    aslMessageHandler = null;
++  }
+   document.getElementById(SS_ASL_HOST_ID)?.remove();
+   aslHands = null;
+   aslShadow = null;
++  aslIframeEl = null;
++  aslFrameWindow = null;
+   aslLetterEl = null;
+   aslWordEl = null;
+   aslWordBuffer = '';
+   aslCurrentLetter = '';
++  aslPredictionHistory = [];
++  aslModelReady = false;
+ }
+ 
+ function injectASLPanel() {
+@@ -2018,6 +2034,8 @@ function injectASLPanel() {
+   iframe.src = browser.runtime.getURL('content/asl-frame.html');
+   iframe.setAttribute('allow', 'camera');
+   iframe.setAttribute('frameborder', '0');
++  iframe.setAttribute('tabindex', '0');
++  aslIframeEl = iframe;
+ 
+   // Letter display
+   const letterBox = document.createElement('div');
+@@ -2222,39 +2240,151 @@ function injectASLPanel() {
+   `);
+ 
+   document.documentElement.appendChild(host);
++  setTimeout(() => {
++    try { iframe.focus({ preventScroll: true }); } catch { /* best-effort */ }
++  }, 200);
+   return iframe;
+ }
+ 
+-function startASLCamera() {
+-  // The iframe handles webcam + MediaPipe. We just listen for results.
+-  console.log('[ScreenShield ASL] startASLCamera called, setting up message listener');
+-  window.addEventListener('message', (e) => {
+-    if (e.data?.type === 'screenshield-asl-landmarks') {
+-      const lms = e.data.landmarks;
+-      if (lms && lms.length > 0) {
+-        console.log('[ScreenShield ASL] Received landmarks, hands:', lms.length);
++function startASLCamera(iframeEl) {
++  // The iframe handles webcam + MediaPipe. We only consume structured messages.
++  if (aslMessageHandler) {
++    window.removeEventListener('message', aslMessageHandler);
++    aslMessageHandler = null;
++  }
++  aslFrameWindow = iframeEl?.contentWindow || null;
++
++  aslMessageHandler = (e) => {
++    if (aslFrameWindow && e.source !== aslFrameWindow) return;
++    if (e.origin !== ASL_IFRAME_ORIGIN) return;
++
++    const payload = e.data;
++    if (!payload || typeof payload !== 'object' || typeof payload.type !== 'string') return;
++
++    if (payload.type === 'screenshield-asl-prediction') {
++      if (!isValidASLPredictionPayload(payload)) return;
++
++      if (typeof payload.modelReady === 'boolean') {
++        aslModelReady = payload.modelReady;
++      }
++
++      if (!aslModelReady) {
++        aslPredictionHistory = [];
++        return;
++      }
++
++      const normalizedLetter =
++        (typeof payload.letter === 'string' && payload.letter.trim())
++          ? payload.letter.trim().toUpperCase()
++          : null;
++
++      const smoothed = updateASLPredictionSmoothing(normalizedLetter, payload.confidence);
++      if (!smoothed.accepted) {
++        applyASLLetter(null, 0);
++        return;
+       }
++
++      applyASLLetter(smoothed.letter, smoothed.confidence);
++      return;
++    }
++
++    if (payload.type === 'screenshield-asl-landmarks') {
++      if (!isValidASLLandmarksPayload(payload)) return;
++      if (aslModelReady) return;
++
++      const lms = payload.landmarks;
+       onASLResults({ multiHandLandmarks: lms });
+     }
+-  });
++  };
++
++  window.addEventListener('message', aslMessageHandler);
++}
++
++function isValidASLPredictionPayload(payload) {
++  if (!payload || typeof payload !== 'object') return false;
++  const hasLetter = payload.letter == null || typeof payload.letter === 'string';
++  const confidence = Number(payload.confidence);
++  return hasLetter && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;
++}
++
++function isValidLandmarkPoint(point) {
++  return !!point
++    && typeof point === 'object'
++    && Number.isFinite(Number(point.x))
++    && Number.isFinite(Number(point.y))
++    && Number.isFinite(Number(point.z));
++}
++
++function isValidASLLandmarksPayload(payload) {
++  if (!payload || typeof payload !== 'object') return false;
++  if (!Array.isArray(payload.landmarks)) return false;
++  return payload.landmarks.every((hand) => Array.isArray(hand) && hand.length === 21 && hand.every(isValidLandmarkPoint));
++}
++
++function updateASLPredictionSmoothing(letter, confidence) {
++  if (!letter) {
++    aslPredictionHistory = [];
++    return { accepted: false, letter: null, confidence: 0 };
++  }
++
++  const conf = Number.isFinite(Number(confidence)) ? Number(confidence) : 0;
++  aslPredictionHistory.push({ letter, confidence: conf });
++  if (aslPredictionHistory.length > ASL_PREDICTION_WINDOW_SIZE) {
++    aslPredictionHistory.shift();
++  }
++
++  const counts = new Map();
++  const sums = new Map();
++  for (const item of aslPredictionHistory) {
++    counts.set(item.letter, (counts.get(item.letter) || 0) + 1);
++    sums.set(item.letter, (sums.get(item.letter) || 0) + item.confidence);
++  }
++
++  let bestLetter = null;
++  let bestCount = -1;
++  let bestSum = -1;
++  for (const [candidate, count] of counts.entries()) {
++    const sum = sums.get(candidate) || 0;
++    if (count > bestCount || (count === bestCount && sum > bestSum)) {
++      bestLetter = candidate;
++      bestCount = count;
++      bestSum = sum;
++    }
++  }
++
++  if (!bestLetter) {
++    return { accepted: false, letter: null, confidence: 0 };
++  }
++
++  const avgConfidence = bestCount > 0 ? (bestSum / bestCount) : 0;
++  const accepted = avgConfidence >= ASL_PREDICTION_CONFIDENCE_THRESHOLD;
++
++  return {
++    accepted,
++    letter: accepted ? bestLetter : null,
++    confidence: avgConfidence,
++  };
+ }
+ 
+ // ΓöÇΓöÇ MediaPipe results handler ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+-function onASLResults(results) {
+-  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+-    if (aslLetterEl) aslLetterEl.textContent = '...';
++function applyASLLetter(letter, confidence = 0) {
++  if (!letter) {
++    if (aslLetterEl) {
++      aslLetterEl.textContent = '...';
++      aslLetterEl.removeAttribute('title');
++    }
+     aslCurrentLetter = '';
+     return;
+   }
+ 
+-  const lm = results.multiHandLandmarks[0]; // 21 landmarks
+-  const letter = classifyASL(lm);
+-
+-  if (aslLetterEl) aslLetterEl.textContent = letter || '...';
++  if (aslLetterEl) {
++    aslLetterEl.textContent = letter;
++    aslLetterEl.title = `Confidence: ${(confidence * 100).toFixed(1)}%`;
++  }
+ 
+   // Word builder: hold a letter for ASL_HOLD_MS to confirm
+-  if (letter && letter !== 'SPACE' && letter !== 'BKSP') {
++  if (letter !== 'SPACE' && letter !== 'BKSP') {
+     if (letter === aslCurrentLetter) {
+       if (Date.now() - aslLetterStart >= ASL_HOLD_MS) {
+         // Apply caps mode
+@@ -2276,127 +2406,159 @@ function onASLResults(results) {
+       aslLetterStart = Date.now();
+     }
+   } else if (letter === 'BKSP') {
+-    if (letter === aslCurrentLetter) {
+-      if (Date.now() - aslLetterStart >= ASL_HOLD_MS) {
+-        aslWordBuffer = aslWordBuffer.slice(0, -1);
+-        if (aslWordEl) aslWordEl.textContent = aslWordBuffer;
+-        aslCurrentLetter = '';
+-        aslLetterStart = Date.now();
+-      }
+-    } else {
++    if (aslCurrentLetter !== 'BKSP') {
++      aslWordBuffer = aslWordBuffer.slice(0, -1);
++      if (aslWordEl) aslWordEl.textContent = aslWordBuffer;
+       aslCurrentLetter = 'BKSP';
+       aslLetterStart = Date.now();
+     }
+   }
+ }
+ 
++function onASLResults(results) {
++  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
++    applyASLLetter(null, 0);
++    return;
++  }
++
++  const lm = results.multiHandLandmarks[0]; // 21 landmarks
++  const letter = classifyASL(lm);
++  applyASLLetter(letter, 1);
++}
++
+ // ΓöÇΓöÇ Geometric ASL classifier ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+ /**
+  * Classifies a hand pose from 21 MediaPipe landmarks into an ASL letter.
+- * Rule ordering: more specific shapes checked before less specific ones.
++ * Uses pure geometric heuristics (finger extended/curled detection).
+  *
+  * Landmark indices:
+- *  0=wrist, 1-4=thumb, 5-8=index, 9-12=middle, 13-16=ring, 17-20=pinky
++ *  0=wrist, 1-4=thumb (CMC,MCP,IP,TIP), 5-8=index (MCP,PIP,DIP,TIP),
++ *  9-12=middle, 13-16=ring, 17-20=pinky
++ *
++ * Supported: A B C D E F G H I K L N O R S T U V W X Y
++ *            + SPACE (open hand), BKSP (closed fist), ILY, thumbs-up
+  */
+ function classifyASL(lm) {
+   // ΓöÇΓöÇ helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-  const ext = (tip, pip) => lm[tip].y < lm[pip].y;
+-  const curl = (tip, mcp) => lm[tip].y > lm[mcp].y;
+-  const dist = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y);
+-
+-  // ΓöÇΓöÇ thumb ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-  const thumbIndexKnuckleDist = dist(4, 5);
+-  const thumbOut = thumbIndexKnuckleDist > 0.10;
+-  const thumbUp = lm[4].y < lm[3].y && lm[4].y < lm[2].y && (lm[5].y - lm[4].y) > 0.10;
+-  const thumbAcross = lm[4].y > lm[6].y && !thumbOut;
+-
+-  // ΓöÇΓöÇ fingers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-  const indexExt = ext(8, 6), middleExt = ext(12, 10), ringExt = ext(16, 14), pinkyExt = ext(20, 18);
+-  const indexCurl = curl(8, 5), middleCurl = curl(12, 9), ringCurl = curl(16, 13), pinkyCurl = curl(20, 17);
++  const ext = (tip, pip) => lm[tip].y < lm[pip].y;            // finger extended
++  const curl = (tip, mcp) => lm[tip].y > lm[mcp].y;            // finger curled
++  const dist = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y); // 2-D distance
++
++  // ΓöÇΓöÇ per-finger state ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++  const thumbOut = Math.abs(lm[4].x - lm[3].x) > 0.04;
++  const thumbUp = lm[4].y < lm[3].y && lm[4].y < lm[2].y;
++  const thumbIn = !thumbOut && !thumbUp;                      // thumb tucked
++  const indexExt = ext(8, 6);
++  const middleExt = ext(12, 10);
++  const ringExt = ext(16, 14);
++  const pinkyExt = ext(20, 18);
++
++  const indexCurl = curl(8, 5);
++  const middleCurl = curl(12, 9);
++  const ringCurl = curl(16, 13);
++  const pinkyCurl = curl(20, 17);
++
+   const allExtended = indexExt && middleExt && ringExt && pinkyExt;
+   const allCurled = indexCurl && middleCurl && ringCurl && pinkyCurl;
++
++  // partial curl: neither fully extended nor fully curled
+   const indexPartial = !indexExt && !indexCurl;
+   const middlePartial = !middleExt && !middleCurl;
+   const ringPartial = !ringExt && !ringCurl;
++  const pinkyPartial = !pinkyExt && !pinkyCurl;
+ 
+-  // ΓöÇΓöÇ distances ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++  // finger-tip distances (for touch detection)
+   const thumbIndexDist = dist(4, 8);
+   const thumbMiddleDist = dist(4, 12);
+-  const thumbRingDist = dist(4, 16);
+-  const thumbPinkyDist = dist(4, 20);
+   const indexMiddleDist = dist(8, 12);
+ 
+-  // Crossed = fingertips horizontally offset (one over the other) AND close together
+-  // Use ABSOLUTE value so it works for either hand and any webcam mirror mode
+-  const fingersCrossed = Math.abs(lm[8].x - lm[12].x) > 0.03 && indexMiddleDist < 0.06;
++  // ΓöÇΓöÇ gestures & special ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+-  // Horizontal = finger is pointing more sideways than up/down
+-  // Compare horizontal span vs vertical span of index finger
+-  const indexHSpan = Math.abs(lm[8].x - lm[5].x);
+-  const indexVSpan = Math.abs(lm[8].y - lm[5].y);
+-  const handHorizontal = indexHSpan > indexVSpan;
++  // SPACE: open hand, all fingers + thumb extended
++  if (allExtended && thumbOut) return 'SPACE';
+ 
+-  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ GESTURES ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
++  // Thumbs up: thumb up, all fingers curled
++  if (thumbUp && allCurled) return '\uD83D\uDC4D';
+ 
+-  if (allExtended && thumbOut) return 'SPACE';
+-  if (thumbUp && allCurled && lm[4].y < lm[9].y) return '\uD83D\uDC4D';
++  // I Love You: thumb + index + pinky extended, mid + ring curled
+   if (thumbOut && indexExt && !middleExt && !ringExt && pinkyExt) return 'ILY';
+ 
+-  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ FOUR / THREE FINGER ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
++  // ΓöÇΓöÇ alphabet ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
++  // Y: thumb + pinky out, rest curled
+   if (thumbOut && !indexExt && !middleExt && !ringExt && pinkyExt) return 'Y';
+-  if (allExtended && !thumbOut) return 'B';
+-  if (indexExt && middleExt && ringExt && !pinkyExt) return 'W';
+-
+-  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ TWO FINGER (index + middle) ΓÇö grouped block ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-
+-  if (indexExt && middleExt && !ringExt && !pinkyExt) {
+-    if (handHorizontal && Math.abs(lm[8].y - lm[12].y) < 0.06) return 'H';
+-    // K: thumb is BETWEEN index and middle (check x-position is between the two fingertips)
+-    const thumbBetween = (lm[4].x > Math.min(lm[8].x, lm[12].x) - 0.02) &&
+-      (lm[4].x < Math.max(lm[8].x, lm[12].x) + 0.02) &&
+-      thumbMiddleDist < 0.10;
+-    if (thumbBetween) return 'K';
+-    // R: fingers crossed AND thumb near ring finger area (blocking it)
+-    if (fingersCrossed && thumbRingDist < 0.12) return 'R';
+-    // R fallback: just fingers clearly crossed
+-    if (fingersCrossed) return 'R';
+-    if (indexMiddleDist < 0.06 && !fingersCrossed) return 'U';
+-    return 'V';
+-  }
+ 
+-  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ SINGLE FINGER (index only) ΓÇö grouped block ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
++  // X: index hooked (partial curl), rest curled
++  if (indexPartial && middleCurl && ringCurl && pinkyCurl && !thumbOut) return 'X';
+ 
+-  if (indexExt && !middleExt && !ringExt && !pinkyExt) {
+-    if (handHorizontal) return 'G';
+-    if (thumbOut) return 'L';
+-    return 'D';
+-  }
++  // W: index + middle + ring extended, pinky curled, thumb in
++  if (indexExt && middleExt && ringExt && !pinkyExt && !thumbOut) return 'W';
++
++  // V / 2: index + middle extended, ring + pinky curled
++  if (indexExt && middleExt && !ringExt && !pinkyExt && !thumbOut) return 'V';
++
++  // U: index + middle extended close together, ring + pinky curled
++  if (indexExt && middleExt && !ringExt && !pinkyExt && indexMiddleDist < 0.05) return 'U';
++
++  // R: index + middle crossed (index over middle)
++  if (indexExt && middleExt && !ringExt && !pinkyExt && lm[8].x < lm[12].x) return 'R';
++
++  // K: index + middle extended in V, thumb between them
++  if (indexExt && middleExt && !ringExt && !pinkyExt && thumbOut &&
++    lm[4].y > lm[8].y && lm[4].y < lm[12].y) return 'K';
++
++  // N: thumb between middle & ring, index + middle curled over thumb
++  if (!indexExt && !middleExt && ringCurl && pinkyCurl &&
++    lm[4].y > lm[10].y && thumbMiddleDist < 0.06) return 'N';
+ 
+-  // I: only pinky
++  // T: thumb between index & middle
++  if (!indexExt && middleCurl && ringCurl && pinkyCurl &&
++    lm[4].y > lm[6].y && lm[4].y < lm[10].y) return 'T';
++
++  // L: index + thumb extended (L-shape), others curled
++  if (thumbOut && indexExt && !middleExt && !ringExt && !pinkyExt) return 'L';
++
++  // I: only pinky extended, rest curled
+   if (!indexExt && !middleExt && !ringExt && pinkyExt && !thumbOut) return 'I';
+ 
+-  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ TOUCH / CIRCLE ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
++  // H: index + middle extended sideways (horizontal)
++  if (indexExt && middleExt && !ringExt && !pinkyExt &&
++    Math.abs(lm[8].y - lm[12].y) < 0.04 &&
++    Math.abs(lm[8].y - lm[0].y) < 0.15) return 'H';
++
++  // G: index pointing sideways, thumb parallel
++  if (indexExt && !middleExt && !ringExt && !pinkyExt && thumbOut &&
++    Math.abs(lm[8].y - lm[5].y) < 0.06) return 'G';
++
++  // F: index + thumb touching (OK shape), middle + ring + pinky extended
++  if (thumbIndexDist < 0.05 && middleExt && ringExt && pinkyExt) return 'F';
++
++  // O: all fingertips close to thumb tip (circle)
++  if (thumbIndexDist < 0.06 && thumbMiddleDist < 0.06 &&
++    dist(4, 16) < 0.06 && dist(4, 20) < 0.08) return 'O';
+ 
+-  if (thumbIndexDist < 0.06 && middleExt && ringExt && pinkyExt) return 'F';
+-  if (thumbIndexDist < 0.07 && thumbMiddleDist < 0.07 && thumbRingDist < 0.07 && thumbPinkyDist < 0.09) return 'O';
+-  if (indexPartial && middlePartial && ringPartial && !allCurled && !thumbAcross) return 'C';
++  // E: all fingers curled with fingertips touching thumb
++  if (allCurled && thumbIn && thumbIndexDist < 0.06) return 'E';
+ 
+-  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ FIST-BASED ΓÇö grouped block ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-  // T before X: both involve "index not fully extended" but T has allCurled
++  // D: index extended, others curled, thumb touches middle
++  if (indexExt && middleCurl && ringCurl && pinkyCurl && !thumbOut) return 'D';
+ 
+-  if (allCurled && lm[4].y > lm[6].y && thumbIndexDist < 0.07 && thumbMiddleDist > 0.03) return 'T';
+-  if (indexPartial && middleCurl && ringCurl && pinkyCurl) return 'X';
+-  // E: thumb horizontal UNDER the curled fingers (thumb tip below index PIP, and thumb is more horizontal than vertical)
+-  const thumbHSpan = Math.abs(lm[4].x - lm[2].x);
+-  const thumbVSpan = Math.abs(lm[4].y - lm[2].y);
+-  if (allCurled && lm[4].y > lm[6].y && thumbHSpan > thumbVSpan) return 'E';
+-  if (allCurled && thumbMiddleDist < 0.05 && thumbRingDist > 0.04 && lm[4].y > lm[10].y && thumbIndexDist > 0.04 && !thumbAcross) return 'N';
+-  if (allCurled && thumbRingDist < 0.05 && lm[4].y > lm[14].y && thumbMiddleDist > 0.04) return 'M';
++  // B: all 4 fingers extended, thumb across palm
++  if (allExtended && !thumbOut) return 'B';
++
++  // S: tight fist, thumb over fingers
++  if (allCurled && !thumbOut && !thumbUp &&
++    lm[4].y > lm[6].y) return 'S';
++
++  // A: fist with thumb to the side
+   if (allCurled && thumbOut) return 'A';
+-  if (allCurled && thumbAcross) return 'S';
+-  if (allCurled) return 'BKSP';
++
++  // BKSP: closed fist (thumb tucked in)
++  if (allCurled && thumbIn) return 'BKSP';
++
++  // C: curved hand ΓÇö partially open fingers
++  if (indexPartial && middlePartial && ringPartial && thumbOut) return 'C';
+ 
+   return null;
+ }

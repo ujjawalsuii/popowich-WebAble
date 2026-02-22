@@ -13,6 +13,8 @@
         body {
             background: #000;
             overflow: hidden;
+            position: relative;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
         }
 
         video {
@@ -21,11 +23,90 @@
             object-fit: cover;
             display: block;
         }
+
+        #asl-hud {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            right: 4px;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            padding: 4px;
+            border-radius: 6px;
+            background: rgba(10, 10, 18, 0.4);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #e8e8f0;
+            font-size: 9px;
+            backdrop-filter: blur(1px);
+        }
+
+        #asl-hud button {
+            border: 1px solid #2d2d4a;
+            background: #1f2937;
+            color: #e8e8f0;
+            border-radius: 4px;
+            padding: 2px 4px;
+            font-size: 9px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        #asl-hud button.active {
+            background: rgba(22, 163, 74, 0.8);
+            border-color: #22c55e;
+            color: #fff;
+        }
+
+        #asl-help {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            right: 4px;
+            z-index: 2;
+            background: rgba(10, 10, 18, 0.4);
+            color: #a1a1c5;
+            border-radius: 4px;
+            padding: 2px 4px;
+            font-size: 8px;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #hud-status {
+            color: #93c5fd;
+            min-width: 90px;
+        }
+
+        #hud-model {
+            color: #a7f3d0;
+        }
+
+        #hud-label {
+            color: #fde68a;
+            font-weight: 700;
+        }
+
+        #hud-count {
+            color: #c4b5fd;
+        }
     </style>
 </head>
 
-<body>
+<body tabindex="0">
     <video id="cam" autoplay playsinline muted></video>
+    <div id="asl-hud" role="status" aria-live="polite">
+        <button id="record-toggle" type="button" class="active">Record: ON</button>
+        <button id="mirror-toggle" type="button" class="active">Mirror L: ON</button>
+        <span id="hud-label">Label: A</span>
+        <span id="hud-count">Samples: 0</span>
+        <span id="hud-status">No hand</span>
+        <span id="hud-model">Model: loading…</span>
+    </div>
+    <div id="asl-help">A-Z: label • Space: capture • Ctrl+S: download • Ctrl+C: clear • 1: record toggle • 2: mirror
+        toggle</div>
     <script src="../lib/mediapipe/hands.js"></script>
     <script src="../lib/mediapipe/camera_utils.js"></script>
     <script src="asl-frame.js"></script>
