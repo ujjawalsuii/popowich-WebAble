@@ -2,7 +2,7 @@
 
 Making the web readable, safe, and inclusive for everyone — one tab at a time.  
 
-**Website:** https://ujjawalsuii.github.io/popowich-accessibility/
+**Website:** [https://ujjawalsuii.github.io/popowich-accessibility/](https://ujjawalsuii.github.io/popowich-WebAble/)
 
 WebAble adds a multi-feature accessibility layer to any page, including:
 
