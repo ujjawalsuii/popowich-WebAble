@@ -2362,7 +2362,9 @@ function updateASLPredictionSmoothing(letter, confidence) {
   }
 
   const avgConfidence = bestCount > 0 ? (bestSum / bestCount) : 0;
-  const accepted = avgConfidence >= ASL_PREDICTION_CONFIDENCE_THRESHOLD;
+  const isSpecial = bestLetter === 'SPACE' || bestLetter === 'BKSP';
+  const threshold = isSpecial ? 0.70 : ASL_PREDICTION_CONFIDENCE_THRESHOLD;
+  const accepted = avgConfidence >= threshold;
 
   return {
     accepted,
@@ -2485,7 +2487,12 @@ function classifyASL(lm) {
 
   // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ GESTURES ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
-  if (allExtended && thumbOut) return 'SPACE';
+  const middleRingDist = dist(12, 16);
+  const isVulcan = allExtended && middleRingDist > 0.06;
+
+  if (isVulcan) return 'BKSP';
+  if (allExtended && thumbOut && !isVulcan) return 'SPACE';
+
   if (thumbUp && allCurled && lm[4].y < lm[9].y) return '\uD83D\uDC4D';
   if (thumbOut && indexExt && !middleExt && !ringExt && pinkyExt) return 'ILY';
 
@@ -2537,12 +2544,10 @@ function classifyASL(lm) {
   // E: thumb horizontal UNDER the curled fingers (thumb tip below index PIP, and thumb is more horizontal than vertical)
   const thumbHSpan = Math.abs(lm[4].x - lm[2].x);
   const thumbVSpan = Math.abs(lm[4].y - lm[2].y);
-  if (allCurled && lm[4].y > lm[6].y && thumbHSpan > thumbVSpan) return 'E';
   if (allCurled && thumbMiddleDist < 0.05 && thumbRingDist > 0.04 && lm[4].y > lm[10].y && thumbIndexDist > 0.04 && !thumbAcross) return 'N';
   if (allCurled && thumbRingDist < 0.05 && lm[4].y > lm[14].y && thumbMiddleDist > 0.04) return 'M';
   if (allCurled && thumbOut) return 'A';
   if (allCurled && thumbAcross) return 'S';
-  if (allCurled) return 'BKSP';
 
   return null;
 }
