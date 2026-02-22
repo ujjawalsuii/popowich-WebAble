@@ -25,9 +25,10 @@
   </header>
 
   <main>
+    <p class="popup-subtitle">Adaptive accessibility tools for reading, communication, and safer browsing.</p>
 
     <!-- Voice Personalization (AI Intent) -->
-    <div class="personalize-wrapper">
+    <section class="popup-section personalize-wrapper" aria-label="Voice personalization">
       <button id="personalize-btn" class="personalize-btn" aria-label="Personalize with Voice">
         <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round">
@@ -38,184 +39,198 @@
         <span>Personalize (Voice)</span>
       </button>
       <div id="personalize-status" class="personalize-status" hidden>Listening...</div>
-    </div>
+    </section>
 
-    <!-- ASL Recognition card -->
-    <div class="card card-asl" id="card-asl">
-      <div class="card-row">
+    <section class="popup-section" aria-label="Core tools">
+      <h3 class="section-title">Core tools</h3>
+
+      <!-- ASL Recognition card -->
+      <div class="card card-asl" id="card-asl">
+        <div class="card-row">
+          <div class="card-info">
+            <h2>
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path
+                  d="M10 2c-1.1 0-2 .9-2 2v6H6V7a2 2 0 0 0-4 0v5a8 8 0 0 0 16 0V9a2 2 0 0 0-4 0v1h-2V4c0-1.1-.9-2-2-2z"
+                  fill="#22c55e" />
+              </svg>
+              ASL Recognition
+            </h2>
+            <p>Detects ASL fingerspelling from your webcam and sends recognized text to Chat Reader.</p>
+          </div>
+          <label class="toggle" aria-label="Toggle ASL Recognition">
+            <input type="checkbox" id="asl-toggle" />
+            <span class="track"><span class="thumb"></span></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Dyslexia Friendly card -->
+      <div class="card" id="card-dyslexia">
+        <div class="card-row">
+          <div class="card-info">
+            <h2>
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <rect x="2" y="4" width="16" height="2" rx="1" fill="#4a90d9" />
+                <rect x="2" y="9" width="12" height="2" rx="1" fill="#4a90d9" />
+                <rect x="2" y="14" width="14" height="2" rx="1" fill="#4a90d9" />
+              </svg>
+              Dyslexia Friendly
+            </h2>
+            <p>OpenDyslexic font, calmer spacing, auto dark/light theme, and focus tools.</p>
+          </div>
+          <label class="toggle" aria-label="Toggle Dyslexia-Friendly Mode">
+            <input type="checkbox" id="dyslexia-toggle" />
+            <span class="track"><span class="thumb"></span></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Text to Speech card -->
+      <div class="card card-tts" id="card-tts">
+        <div class="card-row">
+          <div class="card-info">
+            <h2>
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M3 8v4h3l4 4V4L6 8H3z" fill="#a855f7" />
+                <path d="M14 6.5a4 4 0 0 1 0 7" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" />
+                <path d="M16 4a7 7 0 0 1 0 12" stroke="#a855f7" stroke-width="1.3" stroke-linecap="round" opacity="0.5" />
+              </svg>
+              Text to Speech
+            </h2>
+            <p>Chat reader with TTS. Speaks new messages aloud. Works on Meet, Teams, or via manual input.</p>
+          </div>
+          <label class="toggle" aria-label="Toggle Text to Speech">
+            <input type="checkbox" id="tts-toggle" />
+            <span class="track"><span class="thumb"></span></span>
+          </label>
+        </div>
+        <div class="tts-lang-row" id="tts-lang-section">
+          <label for="tts-language" class="tts-lang-label">Narrate in:</label>
+          <select id="tts-language" class="tts-lang-select">
+            <option value="en">English</option>
+            <option value="fr">French</option>
+            <option value="es">Spanish</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="zh">Chinese</option>
+            <option value="hi">Hindi</option>
+            <option value="ar">Arabic</option>
+            <option value="ru">Russian</option>
+            <option value="nl">Dutch</option>
+            <option value="tr">Turkish</option>
+            <option value="pl">Polish</option>
+            <option value="ml">Malayalam</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Color mode (accessibility palettes) -->
+      <div class="card card-colormode" id="card-colormode">
         <div class="card-info">
           <h2>
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path
-                d="M10 2c-1.1 0-2 .9-2 2v6H6V7a2 2 0 0 0-4 0v5a8 8 0 0 0 16 0V9a2 2 0 0 0-4 0v1h-2V4c0-1.1-.9-2-2-2z"
-                fill="#22c55e" />
+              <circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="1.5" />
+              <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
             </svg>
-            ASL Recognition
+            Color mode
           </h2>
-          <p>Detects ASL fingerspelling from your webcam and sends recognized text to Chat Reader.</p>
+          <p>Palettes optimized for color vision (default, deuteranopia, protanopia, tritanopia).</p>
         </div>
-        <label class="toggle" aria-label="Toggle ASL Recognition">
-          <input type="checkbox" id="asl-toggle" />
-          <span class="track"><span class="thumb"></span></span>
-        </label>
-      </div>
-    </div>
-
-    <!-- Dyslexia Friendly card -->
-    <div class="card" id="card-dyslexia">
-      <div class="card-row">
-        <div class="card-info">
-          <h2>
-            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <rect x="2" y="4" width="16" height="2" rx="1" fill="#4a90d9" />
-              <rect x="2" y="9" width="12" height="2" rx="1" fill="#4a90d9" />
-              <rect x="2" y="14" width="14" height="2" rx="1" fill="#4a90d9" />
-            </svg>
-            Dyslexia Friendly
-          </h2>
-          <p>OpenDyslexic font, calmer spacing, auto dark/light theme, and focus tools.</p>
+        <div class="colormode-select-wrap">
+          <label for="color-mode" class="sr-only">Color mode</label>
+          <select id="color-mode" class="colormode-select" aria-label="Color mode">
+            <option value="default">Default</option>
+            <option value="deuteranopia">Deuteranopia</option>
+            <option value="protanopia">Protanopia</option>
+            <option value="tritanopia">Tritanopia</option>
+          </select>
         </div>
-        <label class="toggle" aria-label="Toggle Dyslexia-Friendly Mode">
-          <input type="checkbox" id="dyslexia-toggle" />
-          <span class="track"><span class="thumb"></span></span>
-        </label>
-      </div>
-    </div>
-
-    <!-- Text to Speech card -->
-    <div class="card card-tts" id="card-tts">
-      <div class="card-row">
-        <div class="card-info">
-          <h2>
-            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M3 8v4h3l4 4V4L6 8H3z" fill="#a855f7" />
-              <path d="M14 6.5a4 4 0 0 1 0 7" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" />
-              <path d="M16 4a7 7 0 0 1 0 12" stroke="#a855f7" stroke-width="1.3" stroke-linecap="round" opacity="0.5" />
-            </svg>
-            Text to Speech
-          </h2>
-          <p>Chat reader with TTS. Speaks new messages aloud. Works on Meet, Teams, or via manual input.</p>
-        </div>
-        <label class="toggle" aria-label="Toggle Text to Speech">
-          <input type="checkbox" id="tts-toggle" />
-          <span class="track"><span class="thumb"></span></span>
-        </label>
-      </div>
-      <div class="tts-lang-row" id="tts-lang-section">
-        <label for="tts-language" class="tts-lang-label">Narrate in:</label>
-        <select id="tts-language" class="tts-lang-select">
-          <option value="en">English</option>
-          <option value="fr">French</option>
-          <option value="es">Spanish</option>
-          <option value="de">German</option>
-          <option value="it">Italian</option>
-          <option value="pt">Portuguese</option>
-          <option value="ja">Japanese</option>
-          <option value="ko">Korean</option>
-          <option value="zh">Chinese</option>
-          <option value="hi">Hindi</option>
-          <option value="ar">Arabic</option>
-          <option value="ru">Russian</option>
-          <option value="nl">Dutch</option>
-          <option value="tr">Turkish</option>
-          <option value="pl">Polish</option>
-          <option value="ml">Malayalam</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Color mode (accessibility palettes) -->
-    <div class="card card-colormode" id="card-colormode">
-      <div class="card-info">
-        <h2>
-          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="1.5" />
-            <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-          </svg>
-          Color mode
-        </h2>
-        <p>Palettes optimized for color vision (default, deuteranopia, protanopia, tritanopia).</p>
-      </div>
-      <div class="colormode-select-wrap">
-        <label for="color-mode" class="sr-only">Color mode</label>
-        <select id="color-mode" class="colormode-select" aria-label="Color mode">
-          <option value="default">Default</option>
-          <option value="deuteranopia">Deuteranopia</option>
-          <option value="protanopia">Protanopia</option>
-          <option value="tritanopia">Tritanopia</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Epilepsy Safe card -->
-    <div class="card" id="card-seizure">
-      <div class="card-row">
-        <div class="card-info">
-          <h2>
-            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <circle cx="10" cy="10" r="8" stroke="#f5a623" stroke-width="1.6" />
-              <path d="M10 6v5" stroke="#f5a623" stroke-width="2" stroke-linecap="round" />
-              <circle cx="10" cy="14.5" r="1" fill="#f5a623" />
-            </svg>
-            Epilepsy Safe
-          </h2>
-          <p>Stops flashing animations, blocks GIFs, &amp; detects risky video content. Harm reduction — not a medical
-            guarantee.</p>
-        </div>
-        <label class="toggle" aria-label="Toggle Epilepsy-Safe Mode">
-          <input type="checkbox" id="seizure-toggle" />
-          <span class="track"><span class="thumb"></span></span>
-        </label>
       </div>
 
-      <!-- Sensitivity slider — only visible when epilepsy-safe is on -->
-      <div class="sensitivity-section" id="sensitivity-section" hidden>
-        <div class="sensitivity-header">
-          <label for="sensitivity-slider">Detection sensitivity</label>
-          <span class="sensitivity-badge" id="sensitivity-value">5</span>
-        </div>
-        <input type="range" id="sensitivity-slider" min="1" max="10" value="5" aria-label="Detection sensitivity" />
-        <div class="sensitivity-labels">
-          <span>Lenient</span>
-          <span>Aggressive</span>
-        </div>
-      </div>
-    </div>
+    </section>
 
-    <!-- Live Subtitles card -->
-    <div class="card card-subtitles" id="card-subtitles">
-      <div class="card-row">
-        <div class="card-info">
-          <h2>
-            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M4 6h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" stroke="#0ea5e9"
-                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M6 10h2M10 10h4" stroke="#0ea5e9" stroke-width="1.5" stroke-linecap="round" />
-            </svg>
-            Live Subtitles
-          </h2>
-          <p>Real-time captions for deaf/hard of hearing users during video calls or media playback.</p>
-        </div>
-        <label class="toggle" aria-label="Toggle Live Subtitles">
-          <input type="checkbox" id="subtitle-toggle" />
-          <span class="track"><span class="thumb"></span></span>
-        </label>
-      </div>
-    </div>
+    <section class="popup-section" aria-label="Safety and captions">
+      <h3 class="section-title">Safety & captions</h3>
 
-    <!-- Allowlist card -->
-    <div class="card card-allowlist" id="card-allowlist">
-      <div class="card-row">
-        <div class="card-info">
-          <h2>Allow this site</h2>
-          <p id="allowlist-domain" class="domain">—</p>
+      <!-- Epilepsy Safe card -->
+      <div class="card" id="card-seizure">
+        <div class="card-row">
+          <div class="card-info">
+            <h2>
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <circle cx="10" cy="10" r="8" stroke="#f5a623" stroke-width="1.6" />
+                <path d="M10 6v5" stroke="#f5a623" stroke-width="2" stroke-linecap="round" />
+                <circle cx="10" cy="14.5" r="1" fill="#f5a623" />
+              </svg>
+              Epilepsy Safe
+            </h2>
+            <p>Stops flashing animations, blocks GIFs, &amp; detects risky video content. Harm reduction — not a medical
+              guarantee.</p>
+          </div>
+          <label class="toggle" aria-label="Toggle Epilepsy-Safe Mode">
+            <input type="checkbox" id="seizure-toggle" />
+            <span class="track"><span class="thumb"></span></span>
+          </label>
         </div>
-        <label class="toggle" aria-label="Allow current site (disable all filters)">
-          <input type="checkbox" id="allowlist-toggle" />
-          <span class="track"><span class="thumb"></span></span>
-        </label>
+
+        <!-- Sensitivity slider — only visible when epilepsy-safe is on -->
+        <div class="sensitivity-section" id="sensitivity-section" hidden>
+          <div class="sensitivity-header">
+            <label for="sensitivity-slider">Detection sensitivity</label>
+            <span class="sensitivity-badge" id="sensitivity-value">5</span>
+          </div>
+          <input type="range" id="sensitivity-slider" min="1" max="10" value="5" aria-label="Detection sensitivity" />
+          <div class="sensitivity-labels">
+            <span>Lenient</span>
+            <span>Aggressive</span>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <!-- Live Subtitles card -->
+      <div class="card card-subtitles" id="card-subtitles">
+        <div class="card-row">
+          <div class="card-info">
+            <h2>
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M4 6h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" stroke="#0ea5e9"
+                  stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M6 10h2M10 10h4" stroke="#0ea5e9" stroke-width="1.5" stroke-linecap="round" />
+              </svg>
+              Live Subtitles
+            </h2>
+            <p>Real-time captions for deaf/hard of hearing users during video calls or media playback.</p>
+          </div>
+          <label class="toggle" aria-label="Toggle Live Subtitles">
+            <input type="checkbox" id="subtitle-toggle" />
+            <span class="track"><span class="thumb"></span></span>
+          </label>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="popup-section" aria-label="Site settings">
+      <h3 class="section-title">Site settings</h3>
+
+      <!-- Allowlist card -->
+      <div class="card card-allowlist" id="card-allowlist">
+        <div class="card-row">
+          <div class="card-info">
+            <h2>Allow this site</h2>
+            <p id="allowlist-domain" class="domain">—</p>
+          </div>
+          <label class="toggle" aria-label="Allow current site (disable all filters)">
+            <input type="checkbox" id="allowlist-toggle" />
+            <span class="track"><span class="thumb"></span></span>
+          </label>
+        </div>
+      </div>
+    </section>
 
   </main>
 

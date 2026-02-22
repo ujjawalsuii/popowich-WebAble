@@ -7,8 +7,12 @@
     "storage",
     "activeTab",
     "scripting",
-    "tabs"
+    "tabs",
+    "contextMenus"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -37,7 +41,12 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "assets/fonts/*"
+        "assets/fonts/*",
+        "content/asl-bridge.js",
+        "content/asl-frame.html",
+        "content/asl-frame.js",
+        "models/*",
+        "lib/mediapipe/*"
       ],
       "matches": [
         "<all_urls>"
