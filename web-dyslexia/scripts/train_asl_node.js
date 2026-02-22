@@ -22,6 +22,9 @@ async function main() {
 
     console.log(`Found ${samples.length} valid samples across ${labels.length} classes: ${labels.join(', ')}`);
 
+    // Shuffle the dataset so the 20% validation split doesn't just cut off the end of the alphabet!
+    tf.util.shuffle(samples);
+
     // Convert to tensors
     const xsData = samples.map(s => s.x);
     const ysData = samples.map(s => labelToIdx[s.label]);

@@ -1964,7 +1964,7 @@ function parseGenericMessage(node) {
 // ΓöÇΓöÇ 10. ASL Recognition ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const SS_ASL_HOST_ID = 'screenshield-asl-host';
-const ASL_PREDICTION_CONFIDENCE_THRESHOLD = 0.6;
+const ASL_PREDICTION_CONFIDENCE_THRESHOLD = 0.85;
 const ASL_PREDICTION_WINDOW_SIZE = 10;
 const ASL_IFRAME_ORIGIN = new URL(browser.runtime.getURL('content/asl-frame.html')).origin;
 let aslStream = null;
@@ -2280,7 +2280,11 @@ function startASLCamera(iframeEl) {
 
       const smoothed = updateASLPredictionSmoothing(normalizedLetter, payload.confidence);
       if (!smoothed.accepted) {
-        applyASLLetter(null, 0);
+        if (window.lastASLLandmarks) {
+          onASLResults({ multiHandLandmarks: window.lastASLLandmarks });
+        } else {
+          applyASLLetter(null, 0);
+        }
         return;
       }
 
@@ -2290,10 +2294,11 @@ function startASLCamera(iframeEl) {
 
     if (payload.type === 'screenshield-asl-landmarks') {
       if (!isValidASLLandmarksPayload(payload)) return;
-      if (aslModelReady) return;
 
-      const lms = payload.landmarks;
-      onASLResults({ multiHandLandmarks: lms });
+      window.lastASLLandmarks = payload.landmarks;
+      if (!aslModelReady) {
+        onASLResults({ multiHandLandmarks: payload.landmarks });
+      }
     }
   };
 
