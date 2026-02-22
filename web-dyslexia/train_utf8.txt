@@ -1,0 +1,103 @@
+﻿Loading dataset...
+Found 1386 valid samples across 22 classes: A, B, C, D, E, F, G, H, I, K, L, N, O, P, Q, S, T, U, V, W, X, Y
+node : 
+At line:1 char:1
++ node 
+scripts/train_asl_node.js 
+> train_output.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo        
+      : NotSpecified: (:  
+  String) [], RemoteExc   
+ eption
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+==========================
+==
+Hi, looks like you are 
+running TensorFlow.js in 
+Node.js. To speed things 
+up dramatically, install 
+our node backend, visit ht
+tps://github.com/tensorflo
+w/tfjs-node for more 
+details. 
+==========================
+==
+Training model...
+Error: Argument 'x' 
+passed to 'floor' must be 
+float32 tensor, but got 
+int32 tensor
+    at assertDtype (C:\Use
+rs\ujjaw\OneDrive\Desktop\
+Hackedd\popowich-accessibi
+lity\web-dyslexia\node_mod
+ules\@tensorflow\tfjs-core
+\dist\tf-core.node.js:5538
+:15)
+    at convertToTensor (C:
+\Users\ujjaw\OneDrive\Desk
+top\Hackedd\popowich-acces
+sibility\web-dyslexia\node
+_modules\@tensorflow\tfjs-
+core\dist\tf-core.node.js:
+5545:9)
+    at floor_ (C:\Users\uj
+jaw\OneDrive\Desktop\Hacke
+dd\popowich-accessibility\
+web-dyslexia\node_modules\
+@tensorflow\tfjs-core\dist
+\tf-core.node.js:13267:14)
+    at Object.floor__op (C
+:\Users\ujjaw\OneDrive\Des
+ktop\Hackedd\popowich-acce
+ssibility\web-dyslexia\nod
+e_modules\@tensorflow\tfjs
+-core\dist\tf-core.node.js
+:5612:29)
+    at C:\Users\ujjaw\OneD
+rive\Desktop\Hackedd\popow
+ich-accessibility\web-dysl
+exia\node_modules\@tensorf
+low\tfjs-layers\dist\tf-la
+yers.node.js:20323:61
+    at C:\Users\ujjaw\OneD
+rive\Desktop\Hackedd\popow
+ich-accessibility\web-dysl
+exia\node_modules\@tensorf
+low\tfjs-core\dist\tf-core
+.node.js:4562:22
+    at Engine.scopedRun (C
+:\Users\ujjaw\OneDrive\Des
+ktop\Hackedd\popowich-acce
+ssibility\web-dyslexia\nod
+e_modules\@tensorflow\tfjs
+-core\dist\tf-core.node.js
+:4572:23)
+    at Engine.tidy (C:\Use
+rs\ujjaw\OneDrive\Desktop\
+Hackedd\popowich-accessibi
+lity\web-dyslexia\node_mod
+ules\@tensorflow\tfjs-core
+\dist\tf-core.node.js:4561
+:21)
+    at Object.tidy (C:\Use
+rs\ujjaw\OneDrive\Desktop\
+Hackedd\popowich-accessibi
+lity\web-dyslexia\node_mod
+ules\@tensorflow\tfjs-core
+\dist\tf-core.node.js:6316
+:19)
+    at sparseCategoricalCr
+ossentropy$1 (C:\Users\ujj
+aw\OneDrive\Desktop\Hacked
+d\popowich-accessibility\w
+eb-dyslexia\node_modules\@
+tensorflow\tfjs-layers\dis
+t\tf-layers.node.js:20322:
+16)
