@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "ScreenShield",
+  "name": "WebAble",
   "version": "1.0.0",
   "description": "Dyslexia reading view + seizure-safe harm reduction. Your accessibility layer.",
   "permissions": [

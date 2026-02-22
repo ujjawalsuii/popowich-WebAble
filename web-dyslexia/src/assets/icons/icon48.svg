@@ -1,11 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <!-- Shield background fill -->
-  <path d="M24 3L6 10.5v15c0 9.9 7.5 19.1 18 21 10.5-1.9 18-11.1 18-21v-15L24 3z"
-        fill="#4a90d9" opacity="0.18"/>
-  <!-- Shield outline -->
-  <path d="M24 3L6 10.5v15c0 9.9 7.5 19.1 18 21 10.5-1.9 18-11.1 18-21v-15L24 3z"
-        fill="none" stroke="#4a90d9" stroke-width="2.5" stroke-linejoin="round"/>
-  <!-- Checkmark -->
-  <path d="M16 24l6 6 10-11" fill="none" stroke="#4a90d9"
-        stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#facc15">
+    <circle cx="24" cy="5.5" r="3.2" />
+    <circle cx="24" cy="42.5" r="3.2" />
+    <circle cx="5.5" cy="24" r="3.2" />
+    <circle cx="42.5" cy="24" r="3.2" />
+    <circle cx="11.6" cy="11.6" r="2.9" />
+    <circle cx="36.4" cy="11.6" r="2.9" />
+    <circle cx="11.6" cy="36.4" r="2.9" />
+    <circle cx="36.4" cy="36.4" r="2.9" />
+    <circle cx="24" cy="10.8" r="2.7" />
+    <circle cx="24" cy="37.2" r="2.7" />
+    <circle cx="10.8" cy="24" r="2.7" />
+    <circle cx="37.2" cy="24" r="2.7" />
+  </g>
+  <circle cx="24" cy="24" r="8.3" fill="#a16207" />
+  <circle cx="24" cy="24" r="5.1" fill="#f59e0b" />
 </svg>

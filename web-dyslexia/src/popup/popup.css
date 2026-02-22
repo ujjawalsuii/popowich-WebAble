@@ -44,7 +44,7 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px 10px;
+  padding: 10px 12px 8px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -55,13 +55,13 @@ header {
 }
 
 .logo svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
 }
 
 .logo span {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.3px;
   color: var(--text);
@@ -76,35 +76,35 @@ header {
 /* ── Main ────────────────────────────────────────────────── */
 
 main {
-  padding: 10px 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 /* ── Cards ───────────────────────────────────────────────── */
 
 .personalize-wrapper {
-  margin-bottom: 12px;
+  margin-bottom: 4px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
 }
 
 .personalize-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: 100%;
+  gap: 0;
+  width: 46px;
+  height: 46px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
+  border-radius: 999px;
+  padding: 0;
   color: var(--text);
   font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -121,8 +121,8 @@ main {
 }
 
 .personalize-btn .mic-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .personalize-btn.listening .mic-icon {
@@ -148,7 +148,7 @@ main {
 
 .personalize-status {
   text-align: center;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--warn);
   font-weight: 500;
 }
@@ -157,7 +157,7 @@ main {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 14px;
+  padding: 9px 10px;
   transition: border-color 0.2s;
 }
 
@@ -184,7 +184,7 @@ main {
 .card-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .card-info {
@@ -196,10 +196,10 @@ main {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 3px;
+  margin-bottom: 0;
 }
 
 .card-info h2 svg {
@@ -209,9 +209,28 @@ main {
 }
 
 .card-info p {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
-  line-height: 1.45;
+  line-height: 1.2;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  pointer-events: none;
+  transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+
+.card:hover .card-info p,
+.card:focus-within .card-info p {
+  max-height: 6em;
+  opacity: 1;
+  margin-top: 4px;
+}
+
+.card-allowlist .domain {
+  max-height: 1.3em !important;
+  opacity: 1 !important;
+  margin-top: 2px;
 }
 
 .domain {
@@ -279,8 +298,8 @@ main {
 /* ── Sensitivity section ─────────────────────────────────── */
 
 .sensitivity-section {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
 }
 
@@ -292,7 +311,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .sensitivity-header label {
@@ -360,10 +379,10 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 /* ── Footer ──────────────────────────────────────────────── */
 
 footer {
-  padding: 8px 16px 12px;
+  padding: 6px 12px 8px;
   border-top: 1px solid var(--border);
   text-align: center;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted);
   letter-spacing: 0.3px;
 }
@@ -422,8 +441,8 @@ footer {
 .tts-lang-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 18px 12px;
+  gap: 6px;
+  padding: 4px 10px 8px;
 }
 
 .tts-lang-label {
@@ -467,7 +486,7 @@ footer {
 /* ── Color mode selector ──────────────────────────────────── */
 
 .card-colormode .card-info {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .colormode-select-wrap {

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ScreenShield</title>
+  <title>WebAble</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 
@@ -13,13 +13,20 @@
   <header>
     <div class="logo">
       <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <path d="M16 2L4 7v9c0 6.6 5.1 12.7 12 14 6.9-1.3 12-7.4 12-14V7L16 2z" fill="#4a90d9" opacity="0.15" />
-        <path d="M16 2L4 7v9c0 6.6 5.1 12.7 12 14 6.9-1.3 12-7.4 12-14V7L16 2z" stroke="#4a90d9" stroke-width="1.8"
-          stroke-linejoin="round" />
-        <path d="M11 16l3.5 3.5L21 12" stroke="#4a90d9" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round" />
+        <g fill="#facc15">
+          <circle cx="16" cy="4.5" r="2.2" />
+          <circle cx="16" cy="27.5" r="2.2" />
+          <circle cx="4.5" cy="16" r="2.2" />
+          <circle cx="27.5" cy="16" r="2.2" />
+          <circle cx="8.1" cy="8.1" r="2" />
+          <circle cx="23.9" cy="8.1" r="2" />
+          <circle cx="8.1" cy="23.9" r="2" />
+          <circle cx="23.9" cy="23.9" r="2" />
+        </g>
+        <circle cx="16" cy="16" r="5.4" fill="#b45309" />
+        <circle cx="16" cy="16" r="3.3" fill="#f59e0b" />
       </svg>
-      <span>ScreenShield</span>
+      <span>WebAble</span>
     </div>
     <span class="version">v1.0</span>
   </header>
@@ -35,7 +42,6 @@
           <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
           <line x1="12" y1="19" x2="12" y2="22"></line>
         </svg>
-        <span>Personalize (Voice)</span>
       </button>
       <div id="personalize-status" class="personalize-status" hidden>Listening...</div>
     </div>
@@ -52,7 +58,7 @@
             </svg>
             ASL Recognition
           </h2>
-          <p>Detects ASL fingerspelling from your webcam and sends recognized text to Chat Reader.</p>
+          <p>Detect ASL fingerspelling and send text to Chat Reader.</p>
         </div>
         <label class="toggle" aria-label="Toggle ASL Recognition">
           <input type="checkbox" id="asl-toggle" />
@@ -73,7 +79,7 @@
             </svg>
             Dyslexia Friendly
           </h2>
-          <p>OpenDyslexic font, calmer spacing, auto dark/light theme, and focus tools.</p>
+          <p>Improve readability with font, spacing, and calmer themes.</p>
         </div>
         <label class="toggle" aria-label="Toggle Dyslexia-Friendly Mode">
           <input type="checkbox" id="dyslexia-toggle" />
@@ -94,7 +100,7 @@
             </svg>
             Text to Speech
           </h2>
-          <p>Chat reader with TTS. Speaks new messages aloud. Works on Meet, Teams, or via manual input.</p>
+          <p>Read incoming text aloud from chat, pages, and meetings.</p>
         </div>
         <label class="toggle" aria-label="Toggle Text to Speech">
           <input type="checkbox" id="tts-toggle" />
@@ -134,7 +140,7 @@
           </svg>
           Color mode
         </h2>
-        <p>Palettes optimized for color vision (default, deuteranopia, protanopia, tritanopia).</p>
+        <p>Switch to colorblind-friendly palettes instantly.</p>
       </div>
       <div class="colormode-select-wrap">
         <label for="color-mode" class="sr-only">Color mode</label>
@@ -159,8 +165,7 @@
             </svg>
             Epilepsy Safe
           </h2>
-          <p>Stops flashing animations, blocks GIFs, &amp; detects risky video content. Harm reduction — not a medical
-            guarantee.</p>
+          <p>Reduce flash and flicker risks across GIFs and videos.</p>
         </div>
         <label class="toggle" aria-label="Toggle Epilepsy-Safe Mode">
           <input type="checkbox" id="seizure-toggle" />
@@ -194,7 +199,7 @@
             </svg>
             Live Subtitles
           </h2>
-          <p>Real-time captions for deaf/hard of hearing users during video calls or media playback.</p>
+          <p>Show real-time captions for calls and media playback.</p>
         </div>
         <label class="toggle" aria-label="Toggle Live Subtitles">
           <input type="checkbox" id="subtitle-toggle" />
@@ -220,7 +225,7 @@
   </main>
 
   <footer>
-    <span>Accessibility · Harm Reduction · Open Source</span>
+    <span>Accessability for All</span>
   </footer>
 
   <script src="../lib/browser-polyfill.js"></script>
