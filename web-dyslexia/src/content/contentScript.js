@@ -2289,135 +2289,95 @@ function onASLResults(results) {
 
 /**
  * Classifies a hand pose from 21 MediaPipe landmarks into an ASL letter.
- * Uses pure geometric heuristics (finger extended/curled detection).
+ * Rule ordering: more specific shapes checked before less specific ones.
  *
  * Landmark indices:
- *  0=wrist, 1-4=thumb (CMC,MCP,IP,TIP), 5-8=index (MCP,PIP,DIP,TIP),
- *  9-12=middle, 13-16=ring, 17-20=pinky
- *
- * Supported: A B C D E F G H I K L N O R S T U V W X Y
- *            + SPACE (open hand), BKSP (closed fist), ILY, thumbs-up
+ *  0=wrist, 1-4=thumb, 5-8=index, 9-12=middle, 13-16=ring, 17-20=pinky
  */
 function classifyASL(lm) {
   // ── helpers ──────────────────────────────────────────────────────
-  const ext = (tip, pip) => lm[tip].y < lm[pip].y;            // finger extended
-  const curl = (tip, mcp) => lm[tip].y > lm[mcp].y;            // finger curled
-  const dist = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y); // 2-D distance
+  const ext = (tip, pip) => lm[tip].y < lm[pip].y;
+  const curl = (tip, mcp) => lm[tip].y > lm[mcp].y;
+  const dist = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y);
 
-  // ── per-finger state ────────────────────────────────────────────
-  const thumbOut = Math.abs(lm[4].x - lm[3].x) > 0.04;
-  const thumbUp = lm[4].y < lm[3].y && lm[4].y < lm[2].y;
-  const thumbIn = !thumbOut && !thumbUp;                      // thumb tucked
-  const indexExt = ext(8, 6);
-  const middleExt = ext(12, 10);
-  const ringExt = ext(16, 14);
-  const pinkyExt = ext(20, 18);
+  // ── thumb ──────────────────────────────────────────────────────
+  const thumbIndexKnuckleDist = dist(4, 5);
+  const thumbOut = thumbIndexKnuckleDist > 0.10;
+  const thumbUp = lm[4].y < lm[3].y && lm[4].y < lm[2].y && (lm[5].y - lm[4].y) > 0.10;
+  const thumbAcross = lm[4].y > lm[6].y && !thumbOut;
 
-  const indexCurl = curl(8, 5);
-  const middleCurl = curl(12, 9);
-  const ringCurl = curl(16, 13);
-  const pinkyCurl = curl(20, 17);
-
+  // ── fingers ────────────────────────────────────────────────────
+  const indexExt = ext(8, 6), middleExt = ext(12, 10), ringExt = ext(16, 14), pinkyExt = ext(20, 18);
+  const indexCurl = curl(8, 5), middleCurl = curl(12, 9), ringCurl = curl(16, 13), pinkyCurl = curl(20, 17);
   const allExtended = indexExt && middleExt && ringExt && pinkyExt;
   const allCurled = indexCurl && middleCurl && ringCurl && pinkyCurl;
-
-  // partial curl: neither fully extended nor fully curled
   const indexPartial = !indexExt && !indexCurl;
   const middlePartial = !middleExt && !middleCurl;
   const ringPartial = !ringExt && !ringCurl;
-  const pinkyPartial = !pinkyExt && !pinkyCurl;
 
-  // finger-tip distances (for touch detection)
+  // ── distances ──────────────────────────────────────────────────
   const thumbIndexDist = dist(4, 8);
   const thumbMiddleDist = dist(4, 12);
+  const thumbRingDist = dist(4, 16);
+  const thumbPinkyDist = dist(4, 20);
   const indexMiddleDist = dist(8, 12);
 
-  // ── gestures & special ──────────────────────────────────────────
+  // Crossed = index tip past middle tip AND fingers close/overlapping
+  const fingersCrossed = (lm[12].x - lm[8].x) > 0.03 && indexMiddleDist < 0.05;
 
-  // SPACE: open hand, all fingers + thumb extended
+  // Horizontal = fingertips at ~same height as wrist
+  const handHorizontal = Math.abs(lm[8].y - lm[0].y) < 0.13;
+
+  // ══════ GESTURES ══════
+
   if (allExtended && thumbOut) return 'SPACE';
-
-  // Thumbs up: thumb up, all fingers curled
-  if (thumbUp && allCurled) return '\uD83D\uDC4D';
-
-  // I Love You: thumb + index + pinky extended, mid + ring curled
+  if (thumbUp && allCurled && lm[4].y < lm[9].y) return '\uD83D\uDC4D';
   if (thumbOut && indexExt && !middleExt && !ringExt && pinkyExt) return 'ILY';
 
-  // ── alphabet ────────────────────────────────────────────────────
+  // ══════ FOUR / THREE FINGER ══════
 
-  // Y: thumb + pinky out, rest curled
   if (thumbOut && !indexExt && !middleExt && !ringExt && pinkyExt) return 'Y';
+  if (allExtended && !thumbOut) return 'B';
+  if (indexExt && middleExt && ringExt && !pinkyExt) return 'W';
 
-  // X: index hooked (partial curl), rest curled
-  if (indexPartial && middleCurl && ringCurl && pinkyCurl && !thumbOut) return 'X';
+  // ══════ TWO FINGER (index + middle) — grouped block ══════
 
-  // W: index + middle + ring extended, pinky curled, thumb in
-  if (indexExt && middleExt && ringExt && !pinkyExt && !thumbOut) return 'W';
+  if (indexExt && middleExt && !ringExt && !pinkyExt) {
+    if (handHorizontal && Math.abs(lm[8].y - lm[12].y) < 0.06) return 'H';
+    if (thumbMiddleDist < 0.08 && lm[4].y > lm[8].y) return 'K';
+    if (fingersCrossed) return 'R';
+    if (indexMiddleDist < 0.06 && !fingersCrossed) return 'U';
+    return 'V';
+  }
 
-  // V / 2: index + middle extended, ring + pinky curled
-  if (indexExt && middleExt && !ringExt && !pinkyExt && !thumbOut) return 'V';
+  // ══════ SINGLE FINGER (index only) — grouped block ══════
 
-  // U: index + middle extended close together, ring + pinky curled
-  if (indexExt && middleExt && !ringExt && !pinkyExt && indexMiddleDist < 0.05) return 'U';
+  if (indexExt && !middleExt && !ringExt && !pinkyExt) {
+    if (handHorizontal) return 'G';
+    if (thumbOut) return 'L';
+    return 'D';
+  }
 
-  // R: index + middle crossed (index over middle)
-  if (indexExt && middleExt && !ringExt && !pinkyExt && lm[8].x < lm[12].x) return 'R';
-
-  // K: index + middle extended in V, thumb between them
-  if (indexExt && middleExt && !ringExt && !pinkyExt && thumbOut &&
-    lm[4].y > lm[8].y && lm[4].y < lm[12].y) return 'K';
-
-  // N: thumb between middle & ring, index + middle curled over thumb
-  if (!indexExt && !middleExt && ringCurl && pinkyCurl &&
-    lm[4].y > lm[10].y && thumbMiddleDist < 0.06) return 'N';
-
-  // T: thumb between index & middle
-  if (!indexExt && middleCurl && ringCurl && pinkyCurl &&
-    lm[4].y > lm[6].y && lm[4].y < lm[10].y) return 'T';
-
-  // L: index + thumb extended (L-shape), others curled
-  if (thumbOut && indexExt && !middleExt && !ringExt && !pinkyExt) return 'L';
-
-  // I: only pinky extended, rest curled
+  // I: only pinky
   if (!indexExt && !middleExt && !ringExt && pinkyExt && !thumbOut) return 'I';
 
-  // H: index + middle extended sideways (horizontal)
-  if (indexExt && middleExt && !ringExt && !pinkyExt &&
-    Math.abs(lm[8].y - lm[12].y) < 0.04 &&
-    Math.abs(lm[8].y - lm[0].y) < 0.15) return 'H';
+  // ══════ TOUCH / CIRCLE ══════
 
-  // G: index pointing sideways, thumb parallel
-  if (indexExt && !middleExt && !ringExt && !pinkyExt && thumbOut &&
-    Math.abs(lm[8].y - lm[5].y) < 0.06) return 'G';
+  if (thumbIndexDist < 0.06 && middleExt && ringExt && pinkyExt) return 'F';
+  if (thumbIndexDist < 0.07 && thumbMiddleDist < 0.07 && thumbRingDist < 0.07 && thumbPinkyDist < 0.09) return 'O';
+  if (indexPartial && middlePartial && ringPartial && !allCurled) return 'C';
 
-  // F: index + thumb touching (OK shape), middle + ring + pinky extended
-  if (thumbIndexDist < 0.05 && middleExt && ringExt && pinkyExt) return 'F';
+  // ══════ FIST-BASED — grouped block ══════
+  // T before X: both involve "index not fully extended" but T has allCurled
 
-  // O: all fingertips close to thumb tip (circle)
-  if (thumbIndexDist < 0.06 && thumbMiddleDist < 0.06 &&
-    dist(4, 16) < 0.06 && dist(4, 20) < 0.08) return 'O';
-
-  // E: all fingers curled with fingertips touching thumb
-  if (allCurled && thumbIn && thumbIndexDist < 0.06) return 'E';
-
-  // D: index extended, others curled, thumb touches middle
-  if (indexExt && middleCurl && ringCurl && pinkyCurl && !thumbOut) return 'D';
-
-  // B: all 4 fingers extended, thumb across palm
-  if (allExtended && !thumbOut) return 'B';
-
-  // S: tight fist, thumb over fingers
-  if (allCurled && !thumbOut && !thumbUp &&
-    lm[4].y > lm[6].y) return 'S';
-
-  // A: fist with thumb to the side
+  if (allCurled && lm[4].y > lm[6].y && lm[4].y < lm[10].y && thumbIndexDist < 0.07) return 'T';
+  if (indexPartial && middleCurl && ringCurl && pinkyCurl) return 'X';
+  if (allCurled && thumbIndexDist < 0.07 && thumbAcross) return 'E';
+  if (allCurled && thumbMiddleDist < 0.05 && thumbRingDist > 0.04 && lm[4].y > lm[10].y && thumbIndexDist > 0.04) return 'N';
+  if (allCurled && thumbRingDist < 0.05 && lm[4].y > lm[14].y && thumbMiddleDist > 0.04) return 'M';
   if (allCurled && thumbOut) return 'A';
-
-  // BKSP: closed fist (thumb tucked in)
-  if (allCurled && thumbIn) return 'BKSP';
-
-  // C: curved hand — partially open fingers
-  if (indexPartial && middlePartial && ringPartial && thumbOut) return 'C';
+  if (allCurled && thumbAcross) return 'S';
+  if (allCurled) return 'BKSP';
 
   return null;
 }
