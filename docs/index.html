@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+    content="WebAble is an accessibility extension with ASL-to-text, text-to-speech, live subtitles, dyslexia-friendly reading mode, epilepsy-safe protection, color-vision support, and voice control." />
+  <title>WebAble | Accessibility Extension</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header class="hero">
+    <div class="container">
+      <h1>WebAble</h1>
+      <p class="slogan">Making the web readable, safe, and inclusive for everyone, one tab at a time.</p>
+      <p class="subtitle">
+        A browser accessibility layer built for real daily use.
+        <strong>ASL-to-text from camera/screen, TTS, dyslexia support, epilepsy-safe protection, color-blind modes,
+          voice control, and live subtitles.</strong>
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://github.com/ujjawalsuii/popowich-accessibility" target="_blank"
+          rel="noopener noreferrer">View GitHub</a>
+        <a class="btn btn-secondary" href="#features">Core features</a>
+        <a class="btn btn-secondary" href="#how-to-use">How to use</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section" id="features">
+      <div class="container">
+        <h2>7 core features</h2>
+        <div class="grid">
+          <article class="card feature f1">
+            <h3>1) ASL-to-Text: camera + screen source switching</h3>
+            <p>WebAble recognizes ASL fingerspelling and builds words in real-time. You can use webcam mode for direct
+              signing or switch to screen mode to monitor a shared video/call window.</p>
+            <ul>
+              <li>Webcam by default</li>
+              <li>One-click “Screen” switch in ASL toolbar</li>
+              <li>Send recognized text directly to Chat Reader/TTS</li>
+            </ul>
+          </article>
+          <article class="card feature f2">
+            <h3>2) Text-to-Speech Chat Reader</h3>
+            <p>The built-in reader speaks messages aloud for users who prefer listening over reading or who are non-verbal
+              in live sessions.</p>
+            <ul>
+              <li>Language selection inside popup</li>
+              <li>Mute/unmute button in the Chat Reader panel</li>
+              <li>Works with ASL output + chat/caption text streams</li>
+            </ul>
+          </article>
+          <article class="card feature f3">
+            <h3>3) Dyslexia-Friendly Reading Layer</h3>
+            <p>Transforms dense pages into a more readable format through typography and spacing improvements that reduce
+              visual crowding.</p>
+            <ul>
+              <li>OpenDyslexic font option (a font designed to make similar letters easier to distinguish)</li>
+              <li>Calmer spacing and layout adjustments</li>
+              <li>Designed to reduce reading fatigue on long pages</li>
+            </ul>
+          </article>
+          <article class="card feature f4">
+            <h3>4) Epilepsy-Safe Harm Reduction</h3>
+            <p>Reduces motion risk by suppressing flashing animations, blocking GIF loops, and scanning video luminance
+              changes to detect possible risky flicker.</p>
+            <ul>
+              <li>Animation suppression</li>
+              <li>GIF replacement behavior</li>
+              <li>Adjustable sensitivity (1–10)</li>
+            </ul>
+          </article>
+          <article class="card feature f5">
+            <h3>5) Color-Vision Accessibility Modes</h3>
+            <p>Users can instantly apply palette adjustments designed for common types of color blindness to improve color
+              separation and readability.</p>
+            <ul>
+              <li>Default</li>
+              <li>Deuteranopia / Protanopia / Tritanopia presets</li>
+              <li>Instant visual update per page</li>
+            </ul>
+          </article>
+          <article class="card feature f6">
+            <h3>6) Voice Control</h3>
+            <p>Voice control lets users control accessibility features without depending fully on mouse/keyboard input.</p>
+            <ul>
+              <li>Hands-free interaction support</li>
+              <li>Can help users with motor or speech-related accessibility needs</li>
+              <li>Built to simplify feature control during live browsing</li>
+            </ul>
+          </article>
+          <article class="card feature f7">
+            <h3>7) Live Subtitles</h3>
+            <p>Shows live caption overlays for spoken content to support deaf and hard-of-hearing users during calls,
+              videos, and meetings.</p>
+            <ul>
+              <li>On-screen subtitle overlay</li>
+              <li>Helps follow speech in real time</li>
+              <li>Useful for meetings and media playback</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="how-to-use">
+      <div class="container">
+        <h2>How to use (important workflows)</h2>
+
+        <article class="howto">
+          <h3>ASL-to-text from camera or screen (main workflow)</h3>
+          <ol>
+            <li>Open the extension popup and enable <strong>ASL Recognition</strong>.</li>
+            <li>Use your webcam by default for hand-sign capture.</li>
+            <li>In the ASL panel, click <strong>Screen</strong> to switch from webcam to screen capture (e.g., Meet/Teams
+              window).</li>
+            <li>Sign letters to build a word in the ASL word box.</li>
+            <li>Press <strong>Send</strong> to push text into Chat Reader / TTS.</li>
+            <li>Use <strong>Clear</strong> to reset and continue the next phrase.</li>
+          </ol>
+        </article>
+
+        <article class="howto">
+          <h3>Text-to-Speech (TTS)</h3>
+          <ol>
+            <li>Enable <strong>Text to Speech</strong> in the popup.</li>
+            <li>Choose your preferred narration language from the <strong>Narrate in</strong> dropdown.</li>
+            <li>Read incoming chat/caption text aloud in the Chat Reader panel.</li>
+            <li>Use the panel mute button anytime you want to pause speech.</li>
+          </ol>
+        </article>
+
+        <article class="howto">
+          <h3>Live Subtitles</h3>
+          <ol>
+            <li>Enable <strong>Live Subtitles</strong> in the popup.</li>
+            <li>Play media or join a call with spoken audio.</li>
+            <li>Read the on-screen subtitle overlay in real time.</li>
+          </ol>
+        </article>
+
+        <article class="howto">
+          <h3>Color blindness support</h3>
+          <ol>
+            <li>Open <strong>Color mode</strong> in the popup.</li>
+            <li>Select <strong>Deuteranopia</strong>, <strong>Protanopia</strong>, or <strong>Tritanopia</strong>.</li>
+            <li>The page palette updates instantly to improve contrast and distinguishability.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="quickstart">
+      <div class="container">
+        <h2>Quick start</h2>
+        <ol class="quickstart-list">
+          <li>Install/load the WebAble extension.</li>
+          <li>Pin the extension and open the popup.</li>
+          <li>Toggle the features you need for your session (ASL, TTS, Subtitles, Dyslexia, Epilepsy-safe, Color mode).</li>
+          <li>Use Voice Control if you prefer hands-free feature control.</li>
+        </ol>
+        <p class="note">
+          <strong>Safety note:</strong> Epilepsy-safe detection is harm reduction and not a medical guarantee.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <p>Making the web readable, safe, and inclusive for everyone.</p>
+      <a href="https://github.com/ujjawalsuii/popowich-accessibility" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+  </footer>
+</body>
+
+</html>
