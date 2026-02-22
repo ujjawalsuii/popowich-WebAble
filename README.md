@@ -41,9 +41,6 @@ npm run demo
 - **Chrome target:** MV3 + service worker background (`build:chrome`, `manifest.chrome.json`).
 - **Firefox target:** MV3 + background scripts + `browser_specific_settings.gecko` (`build:firefox`, `manifest.firefox.json`).
 
-Assumption / TODO:
-
-- `build.js` merges `manifest.base.json` with platform deltas, but committed `manifest.firefox.json` currently differs from base in a few fields (for example permissions/resources). Treat generated `dist/*/manifest.json` as final build output when packaging.
 
 ---
 
