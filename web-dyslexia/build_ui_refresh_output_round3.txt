@@ -1,0 +1,14 @@
+
+> screenshield@1.0.0 build
+> node build.js chrome && node build.js firefox
+
+
+ScreenShield [chrome] built successfully:
+  Unpacked : dist/chrome/
+  Extension: dist/chrome.zip
+
+
+ScreenShield [firefox] built successfully:
+  Unpacked : dist/firefox/
+  Extension: dist/firefox.zip
+
