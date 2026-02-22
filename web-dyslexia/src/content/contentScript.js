@@ -2784,6 +2784,10 @@ function enableSubtitles() {
   };
 
   subtitleRecognition.onerror = (event) => {
+    // Ignore routine SpeechRecognition errors that just mean "nobody is talking" or "network hiccup"
+    if (event.error === 'no-speech' || event.error === 'aborted' || event.error === 'network') {
+      return;
+    }
     console.warn('[ScreenShield] Live Subtitles error:', event.error);
     if (event.error === 'not-allowed' && subtitleOverlayText) {
       subtitleOverlayText.textContent = "Please allow microphone access to use Live Subtitles.";
@@ -2794,13 +2798,18 @@ function enableSubtitles() {
   };
 
   subtitleRecognition.onend = () => {
-    // If mode is still active, restart it immediately (continuous looping)
+    // If mode is still active, restart it (continuous looping)
+    // ADDED 250ms delay to prevent Chrome "aborted" hardware lock collision
     if (isSubtitleModeActive && subtitleRecognition) {
-      try {
-        subtitleRecognition.start();
-      } catch (e) {
-        // Can fail if already started
-      }
+      setTimeout(() => {
+        if (isSubtitleModeActive && subtitleRecognition) {
+          try {
+            subtitleRecognition.start();
+          } catch (e) {
+            // Already started or dead
+          }
+        }
+      }, 250);
     }
   };
 
