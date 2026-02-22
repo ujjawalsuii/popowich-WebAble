@@ -76,7 +76,12 @@ browser.storage.onChanged.addListener((changes) => {
       updated = true;
     }
   }
-  if (updated) hydrateUI();
+  if (updated) {
+    if (changes.colorMode) {
+      applyPaletteToPopup(settings.colorMode);
+    }
+    hydrateUI();
+  }
 });
 
 // ── Render ───────────────────────────────────────────────────
@@ -169,6 +174,14 @@ els.sensitivitySlider.addEventListener('input', () => {
   els.sensitivityValue.textContent = val;
   settings.sensitivity = val;
 });
+
+if (els.colorMode) {
+  els.colorMode.addEventListener('change', async () => {
+    settings.colorMode = els.colorMode.value || 'default';
+    applyPaletteToPopup(settings.colorMode);
+    await browser.storage.sync.set({ colorMode: settings.colorMode });
+  });
+}
 
 // Debounce storage write for slider to avoid hammering sync quota
 let sensitivityTimer = null;

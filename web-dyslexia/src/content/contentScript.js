@@ -96,11 +96,16 @@ browser.storage.onChanged.addListener((changes, area) => {
     return;
   }
   if (changes.allowlist && !isAllowlisted()) {
+    applyPageColorMode();
     if (settings.dyslexiaMode) enableDyslexiaMode();
     if (settings.seizureSafeMode) enableSeizureSafeMode();
     return;
   }
   if (isAllowlisted()) return;
+
+  if (changes.colorMode) {
+    applyPageColorMode();
+  }
 
   if (changes.dyslexiaMode) {
     settings.dyslexiaMode ? enableDyslexiaMode() : disableDyslexiaMode();

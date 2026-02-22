@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   aslMode: false,
   subtitleMode: false,
   sensitivity: 5,
+  colorMode: 'default',
   allowlist: []
 };
 
